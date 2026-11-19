@@ -44,6 +44,8 @@ def init(path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     with connect(path) as con:
         con.executescript(SCHEMA)
+        from .ai_cache import migrate
+        migrate(con)
 
 def upsert(con: sqlite3.Connection, meta: dict):
     # Retain manually adjusted categories, source and license on re-scan.

@@ -14,6 +14,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 from .catalog import ACTIVITIES, ATTRACTIONS
 from .db import connect, photo_by_id
+from . import ai_cache
 
 MODEL = 'ViT-B-32'
 WEIGHTS = 'laion2b_s34b_b79k'
@@ -124,42 +125,48 @@ def test_local_model(progress=None) -> str:
     return 'Local AI works. OpenCLIP loaded, model weights are ready, and image classification completed successfully.'
 
 
-def run_local(db_path: Path, ids: list[int], progress=None):
-    if progress:
-        progress('Starting local AI. Images stay on this computer...')
-    recognizer = LocalRecognizer(progress)
-    completed = skipped = matched = places = unmatched = 0
-    errors = []
-    processed_ids = []
+def run_local(db_path: Path, ids: list[int], progress=None, *, force=False):
+    """Analyze selected photos locally, skipping already-cached images.
+
+    Model loading is lazy: a repeat run using only cached results does not load
+    PyTorch or re-download weights. To refresh predictions, pass force=True.
+    """
+    if progress: progress('Checking previously analyzed photos (no upload)...')
+    pending=[]; completed=skipped=matched=places=unmatched=cached=0
+    errors=[]; processed_ids=[]
+    engine='openclip'; model_name=MODEL + ':' + WEIGHTS
     with connect(db_path) as con:
-        for i, pid in enumerate(ids, 1):
-            row = photo_by_id(con, pid)
-            if not row or row['ai_source'] == 'Manual':
-                skipped += 1
-                continue
+        for pid in dict.fromkeys(ids):
+            row=photo_by_id(con,pid)
+            if not row or row['ai_source']=='Manual' or row['ai_review']=='approved':
+                skipped+=1;continue
             try:
-                result = recognizer.predict(row['path'])
-                # GPS/EXIF locations remain untouched; image-only landmark guesses
-                # are always shown as suggestions requiring a user's review.
-                con.execute('''UPDATE photos SET activities=?, attraction=?, ai_source='OpenCLIP suggestion'
-                               WHERE id=?''', (json.dumps(result['activities']), result['attraction'], pid))
-                completed += 1
-                processed_ids.append(pid)
-                matched += bool(result['activities'])
-                places += bool(result['attraction'])
-                unmatched += not (result['activities'] or result['attraction'])
-                if completed % 10 == 0:
-                    con.commit()
+                file_sig=ai_cache.signature(row['path'])
+                result=None if force else ai_cache.get(con,pid,engine,model_name,file_sig)
+                pending.append((pid,file_sig,result))
             except Exception as exc:
-                if len(errors) < 12:
-                    errors.append(f"{Path(row['path']).name}: {type(exc).__name__}: {exc}")
-            if progress and (i <= 5 or i % 5 == 0 or i == len(ids)):
-                progress(f'Local AI {i:,}/{len(ids):,} | {matched} activity tags, '
-                         f'{places} landmark suggestions, {unmatched} uncertain')
+                errors.append(f'Photo {pid}: {exc}')
+        recognizer=LocalRecognizer(progress) if any(item[2] is None for item in pending) else None
+        for index,(pid,file_sig,result) in enumerate(pending,1):
+            try:
+                if result is None:
+                    result=recognizer.predict(photo_by_id(con,pid)['path'])
+                    ai_cache.store(con,pid,engine,model_name,file_sig,result)
+                else: cached+=1
+                if ai_cache.apply(con,pid,result,'OpenCLIP suggestion'):
+                    completed+=1;processed_ids.append(pid)
+                    matched+=bool(result.get('activities'))
+                    places+=bool(result.get('attraction'))
+                    unmatched+=not(result.get('activities') or result.get('attraction'))
+                if index%10==0:con.commit()
+            except Exception as exc:
+                if len(errors)<12: errors.append(f'Photo {pid}: {type(exc).__name__}: {exc}')
+            if progress and (index<=3 or index%10==0 or index==len(pending)):
+                progress(f'Local AI {index}/{len(pending)} | {matched} tagged, {cached} cached')
         con.commit()
-    return {'tagged': completed, 'skipped': skipped, 'with_activity': matched,
-            'with_attraction': places, 'unmatched': unmatched,
-            'processed_ids': processed_ids, 'errors': errors}
+    return {'tagged':completed,'skipped':skipped,'cached':cached,
+            'with_activity':matched,'with_attraction':places,'unmatched':unmatched,
+            'processed_ids':processed_ids,'errors':errors}
 
 
 def _image_b64(path):
@@ -217,34 +224,35 @@ def cloud_predict(path, api_key, model='gpt-4.1-mini'):
     return {'activities': activities, 'attraction': attraction, 'location': location}
 
 
-def run_cloud(db_path, ids, api_key, model, progress=None):
-    done = skipped = matched = places = unmatched = 0
-    errors = []
-    processed_ids = []
+def run_cloud(db_path, ids, api_key, model, progress=None, *, force=False,
+              max_requests=50):
+    """Cloud recognition is explicit and capped, not a silent background upload."""
+    unique_ids=list(dict.fromkeys(ids))
+    if len(unique_ids)>max_requests:
+        raise ValueError(f'Cloud batch limited to {max_requests} images; choose fewer photos')
+    done=skipped=matched=places=unmatched=cached=0
+    errors=[];processed_ids=[]
     with connect(db_path) as con:
-        for n, pid in enumerate(ids, 1):
-            row = photo_by_id(con, pid)
-            if not row or row['ai_source'] == 'Manual':
-                skipped += 1
-                continue
+        for n,pid in enumerate(unique_ids,1):
+            row=photo_by_id(con,pid)
+            if not row or row['ai_source']=='Manual' or row['ai_review']=='approved':
+                skipped+=1;continue
             try:
-                result = cloud_predict(row['path'], api_key, model)
-                location = row['location'] if row['location_source'] == 'GPS area hint' else (result['location'] or row['location'])
-                location_source = row['location_source'] if row['location_source'] == 'GPS area hint' else ('Cloud AI suggestion' if result['location'] else row['location_source'])
-                con.execute('''UPDATE photos SET activities=?, attraction=?, location=?, location_source=?,
-                               ai_source='Cloud AI suggestion' WHERE id=?''',
-                            (json.dumps(result['activities']), result['attraction'], location, location_source, pid))
-                done += 1
-                processed_ids.append(pid)
-                matched += bool(result['activities'])
-                places += bool(result['attraction'])
-                unmatched += not (result['activities'] or result['attraction'])
+                file_sig=ai_cache.signature(row['path'])
+                result=None if force else ai_cache.get(con,pid,'openai',model,file_sig)
+                if result is None:
+                    result=cloud_predict(row['path'],api_key,model)
+                    ai_cache.store(con,pid,'openai',model,file_sig,result)
+                else: cached+=1
+                if ai_cache.apply(con,pid,result,'Cloud AI suggestion',allow_location=True):
+                    done+=1;processed_ids.append(pid)
+                    matched+=bool(result.get('activities'))
+                    places+=bool(result.get('attraction'))
+                    unmatched+=not(result.get('activities') or result.get('attraction'))
                 con.commit()
             except Exception as exc:
-                if len(errors) < 12:
-                    errors.append(f'{Path(row["path"]).name}: {exc}')
-            if progress:
-                progress(f'Cloud AI: {n}/{len(ids)} (only selected photos uploaded)')
-    return {'tagged': done, 'skipped': skipped, 'with_activity': matched,
-            'with_attraction': places, 'unmatched': unmatched,
-            'processed_ids': processed_ids, 'errors': errors}
+                if len(errors)<12: errors.append(f'{Path(row["path"]).name}: {exc}')
+            if progress:progress(f'Cloud AI: {n}/{len(unique_ids)} ({cached} reused; no extra API charge)')
+    return {'tagged':done,'skipped':skipped,'cached':cached,
+            'with_activity':matched,'with_attraction':places,'unmatched':unmatched,
+            'processed_ids':processed_ids,'errors':errors}
