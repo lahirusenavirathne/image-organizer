@@ -4,7 +4,7 @@ cd /d "%~dp0"
 call "%~dp0ENV_CONFIG.bat"
 echo.
 echo ========================================================
-echo Guia Lanka Photo Manager v1.0.0-rc1 - INSTALL LOCAL VISUAL AI
+echo Guia Lanka Photo Manager v1.0.0-rc2 - INSTALL LOCAL VISUAL AI
 echo ========================================================
 echo.
 if not exist "%GLPHOTO_VENV%\Scripts\python.exe" (

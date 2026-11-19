@@ -18,7 +18,7 @@ from . import db
 from .catalog import ACTIVITIES
 from .operations import preview_moves, execute_moves, undo_last_batch, export_photos
 from .faces import download_models, group_faces
-from .recognition import run_local, run_cloud, local_ai_missing, test_local_model
+from .recognition import run_local, run_cloud, local_ai_missing, test_local_model, format_local_report
 from .library_tools import analyze_library, exact_duplicates, similar_pairs, set_rights
 from .ai_cache import review_pending, review as review_ai
 
@@ -187,6 +187,7 @@ class Window(QMainWindow):
         controls=QHBoxLayout();controls.setSpacing(7)
         self.add_action(controls,'+ Add folder',self.import_folder,True)
         self.add_action(controls,'AI tag selected',self.tag_selected)
+        self.add_action(controls,'Refresh AI selected',self.refresh_ai_selected)
         self.add_action(controls,'Test local AI',self.test_local_ai)
         self.add_action(controls,'Scan quality',self.analyze_quality)
         self.add_action(controls,'Duplicates',self.show_duplicates)
@@ -496,6 +497,23 @@ class Window(QMainWindow):
         if okay!=QMessageBox.StandardButton.Yes:return
         self.task_start(lambda p:run_local(self.db_path,ids,p),self.finished_tags)
 
+    def refresh_ai_selected(self):
+        ids = self.selected_ids()
+        if not ids:
+            return
+        if local_ai_missing():
+            QMessageBox.warning(self, 'Local AI unavailable',
+                'Run INSTALL_AI_WINDOWS.bat and DIAGNOSE_AI_WINDOWS.bat first.')
+            return
+        okay = QMessageBox.question(self, 'Refresh local AI predictions',
+            f'Recompute OpenCLIP suggestions for {len(ids)} selected photographs, ignoring cached results?\n'
+            'This is offline and free. Manually reviewed tags remain protected. '
+            'No photographs will be moved or uploaded.')
+        if okay != QMessageBox.StandardButton.Yes:
+            return
+        self.task_start(lambda p: run_local(self.db_path, ids, p, force=True),
+                        self.finished_tags)
+
     def finished_tags(self,result):
         self.reset_page()
         if result.get('processed_ids'):
@@ -506,19 +524,13 @@ class Window(QMainWindow):
                     item.setSelected(True)
                     self.list.scrollToItem(item)
                     break
-        summary=(f"Processed {result['tagged']} photos. "
-                 f"Activities found: {result.get('with_activity',0)}; "
-                 f"exact landmarks suggested: {result.get('with_attraction',0)}; "
-                 f"uncertain: {result.get('unmatched',0)}; "
-                 f"manual edits protected: {result['skipped']}; "
-                 f"errors: {len(result['errors'])}.")
+        summary = (f"Analyzed {result['tagged']}; with activity: {result['with_activity']}; "
+                   f"tentative landmarks: {result['with_attraction']}; "
+                   f"no tags: {result['unmatched']}; cached: {result['cached']}; "
+                   f"skipped/protected: {result['skipped']}; errors: {len(result['errors'])}.")
         self.status.setText(summary)
-        details=('\n\nErrors:\n'+'\n'.join(result['errors'][:8])) if result['errors'] else ''
-        if result['tagged'] == 0 and not result['errors']:
-            details+='\nNo eligible images processed. Files with manually reviewed metadata are protected.'
-        QMessageBox.information(self,'AI classification results',summary+details+ '\n\n'
-            'Select a photo to review its proposed activities and attraction. '
-            'Save reviewed metadata to protect it from future AI changes.')
+        self.show_report('Local AI classification - detailed results',
+                         format_local_report(result))
 
     def get_models(self):
         if QMessageBox.question(self,'Face model download',

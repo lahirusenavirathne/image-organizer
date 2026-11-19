@@ -55,9 +55,27 @@ def suggest_tags(activity_names, attraction_names, scores) -> dict:
         next_score = places[1][1] if len(places) > 1 else 0.0
         if landmark_score < 0.30 or landmark_score - next_score < 0.02:
             attraction = ''
+    # Raw CLIP cosine similarities are NOT calibrated confidence percentages.
+    # Show candidates even when strict automatic-tag thresholds reject them.
+    activity_candidates = [
+        {'name': name, 'similarity': round(float(score), 4)}
+        for name, score in acts[:3]
+    ]
+    attraction_candidates = [
+        {'name': name, 'similarity': round(float(score), 4)}
+        for name, score in places[:3]
+    ]
+    activity_reason = ('Suggested' if selected else
+                       'No activity candidate passed the automatic-tag threshold (0.18)')
+    attraction_reason = ('Tentative landmark suggestion' if attraction else
+                         'Landmark withheld: similarity below 0.30 or margin below 0.02')
     return {'activities': selected, 'attraction': attraction,
             'score': round(float(landmark_score), 3),
-            'activity_score': round(float(acts[0][1]), 3) if acts else 0.0}
+            'activity_score': round(float(acts[0][1]), 3) if acts else 0.0,
+            'activity_candidates': activity_candidates,
+            'attraction_candidates': attraction_candidates,
+            'activity_reason': activity_reason,
+            'attraction_reason': attraction_reason}
 
 
 class LocalRecognizer:
@@ -126,47 +144,126 @@ def test_local_model(progress=None) -> str:
 
 
 def run_local(db_path: Path, ids: list[int], progress=None, *, force=False):
-    """Analyze selected photos locally, skipping already-cached images.
+    """Classify locally and return a human-readable audit of each selected photo.
 
-    Model loading is lazy: a repeat run using only cached results does not load
-    PyTorch or re-download weights. To refresh predictions, pass force=True.
+    Re-analysis bypasses cached scores, but never replaces manually approved tags.
+    Candidate scores are uncalibrated cosine similarities, not probabilities.
     """
-    if progress: progress('Checking previously analyzed photos (no upload)...')
-    pending=[]; completed=skipped=matched=places=unmatched=cached=0
-    errors=[]; processed_ids=[]
-    engine='openclip'; model_name=MODEL + ':' + WEIGHTS
+    if progress:
+        progress('Checking previous results (offline; no image upload)...')
+    pending = []
+    completed = skipped = matched = places = unmatched = cached = 0
+    errors = []
+    processed_ids = []
+    reports = []
+    max_reports = 100
+    engine = 'openclip'
+    model_name = MODEL + ':' + WEIGHTS
     with connect(db_path) as con:
         for pid in dict.fromkeys(ids):
-            row=photo_by_id(con,pid)
-            if not row or row['ai_source']=='Manual' or row['ai_review']=='approved':
-                skipped+=1;continue
+            row = photo_by_id(con, pid)
+            if row is None:
+                skipped += 1
+                if len(reports) < max_reports:
+                    reports.append({'filename': f'Photo #{pid}', 'status': 'Skipped: no longer indexed'})
+                continue
+            name = Path(row['path']).name
+            if row['ai_source'] == 'Manual' or row['ai_review'] == 'approved':
+                skipped += 1
+                if len(reports) < max_reports:
+                    reports.append({'filename': name, 'status': 'Skipped: manually reviewed; protected'})
+                continue
             try:
-                file_sig=ai_cache.signature(row['path'])
-                result=None if force else ai_cache.get(con,pid,engine,model_name,file_sig)
-                pending.append((pid,file_sig,result))
+                file_sig = ai_cache.signature(row['path'])
+                result = None if force else ai_cache.get(con, pid, engine, model_name, file_sig)
+                pending.append((pid, name, file_sig, result))
             except Exception as exc:
-                errors.append(f'Photo {pid}: {exc}')
-        recognizer=LocalRecognizer(progress) if any(item[2] is None for item in pending) else None
-        for index,(pid,file_sig,result) in enumerate(pending,1):
+                message = f'{name}: {type(exc).__name__}: {exc}'
+                errors.append(message)
+                if len(reports) < max_reports:
+                    reports.append({'filename': name, 'status': 'Error: ' + str(exc)})
+        recognizer = LocalRecognizer(progress) if any(item[3] is None for item in pending) else None
+        for index, (pid, name, file_sig, result) in enumerate(pending, 1):
+            was_cached = result is not None
             try:
                 if result is None:
-                    result=recognizer.predict(photo_by_id(con,pid)['path'])
-                    ai_cache.store(con,pid,engine,model_name,file_sig,result)
-                else: cached+=1
-                if ai_cache.apply(con,pid,result,'OpenCLIP suggestion'):
-                    completed+=1;processed_ids.append(pid)
-                    matched+=bool(result.get('activities'))
-                    places+=bool(result.get('attraction'))
-                    unmatched+=not(result.get('activities') or result.get('attraction'))
-                if index%10==0:con.commit()
+                    result = recognizer.predict(photo_by_id(con, pid)['path'])
+                    ai_cache.store(con, pid, engine, model_name, file_sig, result)
+                else:
+                    cached += 1
+                if ai_cache.apply(con, pid, result, 'OpenCLIP suggestion'):
+                    completed += 1
+                    processed_ids.append(pid)
+                    has_activity = bool(result.get('activities'))
+                    has_attraction = bool(result.get('attraction'))
+                    matched += has_activity
+                    places += has_attraction
+                    unmatched += not (has_activity or has_attraction)
+                    status = ('Tagged' if has_activity or has_attraction else 'No accepted tags')
+                    if was_cached:
+                        status += ' (cached)'
+                    if len(reports) < max_reports:
+                        reports.append({
+                            'filename': name, 'status': status,
+                            'activities': result.get('activities', []),
+                            'attraction': result.get('attraction', ''),
+                            'activity_candidates': result.get('activity_candidates', []),
+                            'attraction_candidates': result.get('attraction_candidates', []),
+                            'activity_reason': result.get('activity_reason', ''),
+                            'attraction_reason': result.get('attraction_reason', ''),
+                            'was_cached': was_cached,
+                        })
+                if index % 10 == 0:
+                    con.commit()
             except Exception as exc:
-                if len(errors)<12: errors.append(f'{Path(photo_by_id(con,pid)["path"]).name}: {type(exc).__name__}: {exc}')
-            if progress and (index<=3 or index%10==0 or index==len(pending)):
-                progress(f'Local AI {index}/{len(pending)} | {matched} tagged, {cached} cached')
+                message = f'{name}: {type(exc).__name__}: {exc}'
+                errors.append(message)
+                if len(reports) < max_reports:
+                    reports.append({'filename': name, 'status': 'Error: ' + str(exc)})
+            if progress and (index <= 3 or index % 10 == 0 or index == len(pending)):
+                progress(f'Local AI {index}/{len(pending)} | {matched} with activity, '
+                         f'{unmatched} without tags, {cached} cached')
         con.commit()
-    return {'tagged':completed,'skipped':skipped,'cached':cached,
-            'with_activity':matched,'with_attraction':places,'unmatched':unmatched,
-            'processed_ids':processed_ids,'errors':errors}
+    return {'tagged': completed, 'skipped': skipped, 'cached': cached,
+            'with_activity': matched, 'with_attraction': places,
+            'unmatched': unmatched, 'processed_ids': processed_ids, 'errors': errors,
+            'reports': reports, 'report_limit': max_reports,
+            'total_selected': len(dict.fromkeys(ids)), 'forced': force}
+
+
+def format_local_report(result: dict) -> str:
+    """Explain outcomes without mistaking CLIP similarities for accuracy scores."""
+    lines = [
+        f"Selected: {result.get('total_selected', 0)} | analyzed: {result.get('tagged', 0)} "
+        f"| with activity: {result.get('with_activity', 0)} "
+        f"| tentative landmark: {result.get('with_attraction', 0)}",
+        f"No accepted tags: {result.get('unmatched', 0)} | cached: {result.get('cached', 0)} "
+        f"| protected/skipped: {result.get('skipped', 0)} | errors: {len(result.get('errors', []))}",
+        'Similarity values below are raw CLIP cosine similarities, not percentages or calibrated confidence.',
+        'Candidates are suggestions for human review; do not use uncertain landmarks as verified locations.',
+    ]
+    for item in result.get('reports', []):
+        lines.append('')
+        lines.append(f"{item['filename']} - {item['status']}")
+        if item.get('activities'):
+            lines.append('  Accepted activities: ' + ', '.join(item['activities']))
+        if item.get('attraction'):
+            lines.append('  Tentative landmark: ' + item['attraction'])
+        for kind in ('activity', 'attraction'):
+            candidates = item.get(kind + '_candidates', [])
+            if candidates:
+                display = ', '.join(f"{c['name']} ({c['similarity']:.3f})" for c in candidates)
+                lines.append(f'  Top {kind} candidates: {display}')
+            elif item.get('was_cached'):
+                lines.append(f'  No {kind} scores stored in older cache: select Refresh AI selected.')
+        for kind in ('activity', 'attraction'):
+            if item.get(kind + '_reason'):
+                lines.append('  ' + item[kind + '_reason'])
+    if result.get('total_selected', 0) > result.get('report_limit', 100):
+        lines.extend(['', 'Per-photo report limited to the first 100 outcomes.'])
+    lines.extend(['', 'Next: inspect incorrect candidates and manually review tags; '
+                  'use Refresh AI selected to bypass previous cached predictions.'])
+    return '\n'.join(lines)
 
 
 def _image_b64(path):

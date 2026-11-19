@@ -1,3 +1,11 @@
+## 1.0.0-rc2 - Classification diagnostics
+
+- Explain empty tagging: top candidate similarity scores, threshold reasons and per-photo outcomes.
+- Separate analyzed, unclassified, protected, cached and failed photos in the result dialog.
+- Add **Refresh AI selected** to recompute local predictions without cached results.
+- Protect manually approved tags; no change to move/export safety or cloud behavior.
+- Diagnostic results are not evidence of higher recognition accuracy; keep location suggestions tentative.
+
 # Changelog
 
 ## v1.0.0-rc1 — Windows release candidate

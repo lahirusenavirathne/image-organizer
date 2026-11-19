@@ -1,6 +1,9 @@
-# Guia Lanka Photo Manager — v1.0.0-rc1
+# Guia Lanka Photo Manager — v1.0.0-rc2
 
 **Windows photo organizer for local Sri Lankan travel photos; source release candidate.**
+
+**v1.0.0-rc2 tagging diagnostics:** Select 2-5 photos and click **Refresh AI selected** to bypass previous cached predictions. The detailed result window distinguishes analyzed images, unclassified images, cached predictions, protected manual tags and errors. It displays the top three raw OpenCLIP activity/attraction candidates, even if no automatic tags pass the thresholds. Similarity numbers are not calibrated probabilities. Manually reviewed fields remain protected. This is a diagnostic change, not a validated improvement in actual attraction-identification accuracy.
+
 
 > **Release status:** All automated core tests pass in the Linux development
 > environment. Windows GUI, pretrained models, OpenAI request and generated
