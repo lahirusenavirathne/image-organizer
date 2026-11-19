@@ -1,0 +1,31 @@
+Guia Lanka Photo Manager v0.1.2 - AI tagging repair
+11 November 2026
+
+1. AI tagging was not installed by INSTALL_WINDOWS.bat in v0.1.1. A new
+   AI status notice and actionable setup message now explain this.
+2. INSTALL_AI_WINDOWS.bat installs compatible CPU-only PyTorch/torchvision
+   followed by OpenCLIP and verifies that all three libraries import.
+3. DIAGNOSE_AI_WINDOWS.bat performs a real model-inference smoke test and
+   writes a diagnostic log to %TEMP%\GLPhoto_AI_Diagnostics.txt.
+4. Added a Test local AI button to the desktop UI.
+5. Added human-readable model-load and per-image failure reports.
+6. Improved activity suggestion thresholds so a plausible top label is
+   not silently rejected; ambiguous landmarks remain blank.
+7. Show primary activity below each image name, and show a tagging summary
+   including activities, landmark suggestions, uncertain and skipped photos.
+8. Preserved previous SQLite database path, installer short venv path, manual
+   tags, review-before-move workflow and export features.
+9. Tests: 11 pass. Windows GUI and downloaded OpenCLIP weights have not
+   been tested in this Linux environment. Use diagnostics on Windows.
+
+UPGRADE FROM v0.1.1
+
+1. Close the app. Extract this ZIP into a NEW folder, preferably C:\GLPhoto.
+2. Run INSTALL_AI_WINDOWS.bat (you do not have to rerun base install if it works).
+3. Run DIAGNOSE_AI_WINDOWS.bat and confirm AI diagnostic PASSED.
+4. Launch START_WINDOWS.bat, select 2-5 photos, and use AI tag selected.
+
+Your existing photo database is retained in:
+%LOCALAPPDATA%\GuiaLankaPhotoManager\photos.db
+
+No photos will be moved merely by tagging them.
