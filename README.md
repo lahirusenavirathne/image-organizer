@@ -1,0 +1,140 @@
+# Guia Lanka Photo Manager
+
+**Windows desktop MVP (source code) — version 0.1.2, 11 November 2026**
+
+A desktop app for classifying and organizing local travel photography, especially Sri Lankan attractions and experiences. The app indexes photos in a local SQLite database, presents a visual photo gallery, optionally suggests activities and attractions with local or cloud vision models, groups similar faces locally, and exports new images at precise dimensions in selected formats.
+
+**Important status:** The core non-UI modules have automated tests. The PySide6 GUI, OpenCLIP pretrained model downloads, OpenCV face model downloads, OpenAI requests, and Windows executable build have **not yet been tested on a Windows computer**. This is an implementable MVP source project, **not** a signed or production-certified installer.
+
+## Run on Windows
+
+1. Install **64-bit Python 3.11, 3.12 or 3.13** from https://www.python.org/downloads/windows/ (include the Python launcher).
+2. Extract this ZIP to a normal local directory (for example `C:\GLPhoto`).
+3. Double-click **`INSTALL_WINDOWS.bat`**. It creates a Python environment in `%LOCALAPPDATA%\GLPvenv` (a short path that avoids PySide6 MAX_PATH installation failures) and installs PySide6, Pillow, NumPy and OpenCV. Internet is needed for this one-time install.
+4. To use **AI image recognition**, you must also run **`INSTALL_AI_WINDOWS.bat`**. The base installer does not include the large recognition model. Run **`DIAGNOSE_AI_WINDOWS.bat`** to verify libraries and model download; it saves a troubleshooting report to `%TEMP%\GLPhoto_AI_Diagnostics.txt`.
+5. Double-click **`START_WINDOWS.bat`**.
+6. Click **+ Add folder** and choose an image folder. This indexes files and metadata without relocating them.
+7. Select one or more images in **Photo Library**. `Ctrl+A` selects all **on the visible page**. Browse 120 images per page.
+8. Review location, activity, attraction, photographer, copyright, license, and source URL on the right. Click **Save reviewed metadata** to protect manual tags from future AI updates.
+
+The catalog, face embeddings, face models, and thumbnails are stored in `%LOCALAPPDATA%\GuiaLankaPhotoManager\` (on Windows). The image originals remain in their chosen folders until you explicitly approve moves.
+
+## Installer fix originally introduced in v0.1.1 (PySide6 path-length error)
+
+Windows can fail installing PySide6 when the environment is nested in a long Downloads path, with an error involving `qml\Qt\labs\assetdownloader` and `No such file or directory`. This release keeps the environment in `%LOCALAPPDATA%\GLPvenv`, independent of the extracted project location. All launch, AI installation and EXE build scripts use that path. You **do not have to enable Windows long paths** or move the source folder for this specific error.
+
+If upgrading from v0.1.0, extract this ZIP into a *new* folder or replace all four `.bat` files and add `ENV_CONFIG.bat`, then rerun `INSTALL_WINDOWS.bat`. If an incomplete `.venv` folder remains inside the old project, it can be deleted; this release does not use it. If the error persists, try extracting the whole application to `C:\GLPhoto` and rerunning the installer.
+
+## AI options
+
+### GPS / metadata / manual classification (base installation)
+
+- Imports JPG/JPEG, PNG, WebP, TIFF and BMP. Supports HEIC/HEIF only if optional `pillow-heif` is installed.
+- Reads image width, height, camera, artist and copyright from standard EXIF, plus selected embedded XMP fields.
+- Converts GPS EXIF coordinates into **approximate nearby Sri Lankan location hints**. This is *not* exact landmark verification; coordinates are never uploaded automatically.
+- Stores original folder path, original file path, recorded source URL, photographer, license and copyright. **An original website, photographer or copyright holder cannot be reliably deduced from pixels alone.** If source metadata is absent, enter it manually. No reverse-image-search service is currently connected.
+- Supports manual activity labels and attraction tags.
+
+### Local Sri Lanka visual recognition (separate setup required)
+
+**Why tagging might appear broken in v0.1.1:** The base setup installs the photo library, not the optional OpenCLIP AI packages. If you click `AI tag selected` without having run `INSTALL_AI_WINDOWS.bat`, classification cannot start. Even after packages install, first-time pretrained weights require internet.
+
+1. **Close** the photo manager and run **`INSTALL_AI_WINDOWS.bat`**. This installs CPU-only PyTorch, torchvision and OpenCLIP; it is a **large download**. Wait for the final `SUCCESS` confirmation. 
+2. Run **`DIAGNOSE_AI_WINDOWS.bat`**. It tests the actual model and writes `%TEMP%\GLPhoto_AI_Diagnostics.txt`. It will say `AI diagnostic PASSED` or include the precise failure. You can send that log for support; it contains library versions and computer paths but no source photos or API key.
+3. Restart **`START_WINDOWS.bat`**. At the top, an **AI status banner** indicates whether the packages are missing. Click **Test local AI** to verify end-to-end image classification.
+4. Import a few pictures, select **2-5 images**, and click **AI tag selected**. The first run downloads trained model weights; later runs can classify offline. The application now shows a summary of activity tags, tentative landmark matches, uncertain images, skipped manual tags and errors. Tags are also visible under image filenames in the gallery.
+5. **Review the results**: activity suggestions use a more permissive similarity threshold, and exact landmarks remain conservative. A filename or GPS hint is not proof that an attraction is pictured. Saving reviewed metadata prevents later AI overwriting it.
+
+If the AI packages are listed as installed but model testing fails, provide the `GLPhoto_AI_Diagnostics.txt` report. If `Processed 0 photos` appears, verify that photos were selected and were not already manually tagged. You do not need an OpenAI API key for local classification.
+
+If you upgraded from v0.1.1, extract v0.1.2 into a new folder and run the new scripts. **The existing photo database is retained** in `%LOCALAPPDATA%\GuiaLankaPhotoManager`, and the Python environment remains `%LOCALAPPDATA%\GLPvenv`. No reimport is normally necessary.
+
+The activity vocabulary covers safaris, elephants, leopards, birding, hiking, beaches, surfing, temples, historical ruins, train rides, tea plantations, waterfalls, village activities, boat rides, snorkeling, cooking classes and more. The landmark catalog includes Sigiriya, Dambulla, Polonnaruwa, Anuradhapura, Nine Arch Bridge, Little Adam's Peak, Ella Rock, Ravana Falls, Galle Fort, Temple of the Tooth, Yala, Wilpattu, Udawalawe, Minneriya, Kaudulla, Trincomalee and more. Edit `app/catalog.py` to customize this list.
+
+**For a batch of 10,000 photos, CPU-based model inference can be slow**. Start with a sample of 100–200 photos to verify tags and measure throughput. There is no calibrated landmark certainty score in this MVP.
+
+### Local face grouping (optional)
+
+1. Click **Get face models**, approve downloading the official OpenCV YuNet and SFace ONNX weights (~37 MB combined).
+2. Click **Group faces** to process all not-yet-scanned images. This can take a long time for 10,000 photos.
+3. Switch to **People / Face Groups**, rename groups if desired, and double-click one to see its photos.
+
+Face embeddings and group names are stored locally. No face data is sent to cloud AI. Face similarity matching can incorrectly combine different people or split the same person; group labels should be manually verified. The MVP offers group browsing and renaming, not merge/split/correction controls yet. Obtain appropriate permission before processing other people's faces, particularly customers or children.
+
+### Cloud vision (optional, explicitly confirmed)
+
+1. Select up to 50 photos on the visible page.
+2. Click **Cloud AI selected** and provide your OpenAI API key (held in memory for this operation only; not saved).
+3. Confirm the privacy/cost dialog; only these selected photos, resized to max 1024 pixels, are sent to the OpenAI Responses API using the specified vision-capable model.
+4. Cloud recognition suggests activities, landmark and rough location. It never asserts source or copyright and does not identify people.
+
+Requires an external OpenAI account/API key, network access and may incur API charges. Check the selected model's current availability and pricing with the API provider. No cloud call occurs during scanning or face grouping. Cloud requests do not preserve original embedded metadata, but the image pixels themselves might disclose private information.
+
+## Review-before-move workflow
+
+1. Select the photos you want to organize.
+2. Click **Review moves** and select a destination directory.
+3. Inspect the **full source-to-destination preview**. The proposed path is `destination / Location / PrimaryActivity / OriginalFilename` (sanitized for Windows). Unknown categories use `Location Unknown` and `Activity Unknown`.
+4. Approve. The app refuses to overwrite existing destination files; filename conflicts get numbered suffixes when the preview is generated. It rechecks destinations when executing.
+5. **Undo last moves** restores the most recent batch where original paths are free.
+
+**Create a backup before mass-moving a production photo library.** This MVP records moves and offers undo, but a power failure or disk failure during a cross-drive move can still leave a partial copy or require manual repair. Try a small test folder first.
+
+## Image exports
+
+Select photos and click **Export selected**. Choose a preset or enter custom pixel dimensions and an output format.
+
+| Setting | Supported choices |
+|---|---|
+| Dimensions | Custom W x H, including 272 x 300, 1200 x 800, 1080 x 1080, 1080 x 1350, 1920 x 1080 |
+| Resize behavior | Crop to fill exact dimensions; Pad to fit exact dimensions; set one dimension to 0 to preserve aspect ratio |
+| Formats | WebP, JPEG, PNG, TIFF |
+| Quality | Adjustable for WebP and JPEG |
+| Collision safety | No overwrites; generated names get numeric suffixes |
+| Metadata | Exported pixels strip source metadata by default. A separate UTF-8 CSV export manifest records source, photographer, copyright, license, activity and location. |
+
+**This is a resize/re-encode export, not permission to use an image.** Copyright and licensing must be independently verified. Original photos remain untouched by export.
+
+## Windows EXE packaging
+
+An **experimental** `BUILD_WINDOWS_EXE.bat` script builds a local Windows application folder using PyInstaller. Run it on Windows after installation. Output should be under `dist\GuiaLankaPhotoManager\`. This cannot be built or verified from the Linux development environment used to produce this ZIP. The optional OpenCLIP/PyTorch model may require build-specific dependency adjustments and results in a large package; for initial testing, use the Python launcher scripts.
+
+## Tests
+
+From the project root in a Python environment with Pillow and NumPy:
+
+```shell
+python -m pytest tests -q
+```
+
+The 11 automated tests cover importing/rescanning, manual tag protection, SQLite search, safe path sanitization, preview/commit/undo moves, exact-size WebP/JPEG/PNG export, copyright/source manifests, GPS hints and changed-image invalidation, plus AI score selection, manual-tag protection, missing dependencies and per-file error reporting. The actual Windows Qt GUI and pretrained OpenCLIP model load still require on-device verification. `DIAGNOSE_AI_WINDOWS.bat` now performs the missing real-model test.
+
+## Limitations and recommended next phase
+
+- Add asynchronous thumbnail generation and virtualized browsing for very large pages.
+- Add explicit face group merge/split, side-by-side verification, and deletion of biometric embeddings.
+- Add configurable offline model thresholds and human-review queues; curate location-specific recognition examples to improve Sri Lanka attraction accuracy.
+- Add duplicate detection, IPTC/XMP metadata coverage, batch manual editing and comprehensive source audit logs.
+- Add adjustable export naming templates, sharpening and batch folders; embed copyright metadata optionally while stripping GPS.
+- Build and test on Windows 11 and publish a signed installer with an update mechanism.
+
+## Code layout
+
+- `app/ui.py` – Qt gallery, filters, review dialogs and export UI
+- `app/db.py` – persistent SQLite catalog, search and indexing
+- `app/metadata.py` – local EXIF/XMP import
+- `app/catalog.py` – Sri Lanka-specific vocabulary and approximate GPS areas
+- `app/recognition.py` – on-demand local OpenCLIP and optional cloud analysis
+- `app/ai_doctor.py` – setup diagnostics, compatible imports, optional model smoke test
+- `app/faces.py` – local YuNet/SFace face embedding and matching
+- `app/operations.py` – move/undo and non-destructive image exports
+- `tests/` – automated non-GUI tests
+
+### Framework/model references
+
+- Qt for Python / PySide6: https://doc.qt.io/qtforpython-6/
+- OpenCV Zoo YuNet and SFace: https://github.com/opencv/opencv_zoo
+- OpenCV face tutorial: https://docs.opencv.org/4.x/d0/dd4/tutorial_dnn_face.html
+- OpenCLIP: https://github.com/mlfoundations/open_clip
+
+Review third-party dependency and model licenses separately before commercial redistribution.
