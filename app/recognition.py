@@ -160,7 +160,7 @@ def run_local(db_path: Path, ids: list[int], progress=None, *, force=False):
                     unmatched+=not(result.get('activities') or result.get('attraction'))
                 if index%10==0:con.commit()
             except Exception as exc:
-                if len(errors)<12: errors.append(f'Photo {pid}: {type(exc).__name__}: {exc}')
+                if len(errors)<12: errors.append(f'{Path(photo_by_id(con,pid)["path"]).name}: {type(exc).__name__}: {exc}')
             if progress and (index<=3 or index%10==0 or index==len(pending)):
                 progress(f'Local AI {index}/{len(pending)} | {matched} tagged, {cached} cached')
         con.commit()

@@ -53,7 +53,7 @@ def store(con, photo_id: int, engine: str, model: str, file_sig: str, result: di
 
 
 def apply(con, photo_id: int, result: dict, engine_label: str, *, allow_location=False):
-    row = con.execute('SELECT ai_source,location_source,location FROM photos WHERE id=?',
+    row = con.execute('SELECT ai_source,ai_review,location_source,location FROM photos WHERE id=?',
                       (photo_id,)).fetchone()
     if not row or row['ai_source'] == 'Manual' or row['ai_review'] == 'approved':
         return False
