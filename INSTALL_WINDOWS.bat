@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 call "%~dp0ENV_CONFIG.bat"
 echo.
-echo Guia Lanka Photo Manager - Windows installer v0.1.2
+echo Guia Lanka Photo Manager - Windows installer v1.0.0-rc1
 echo Virtual environment: %GLPHOTO_VENV%
 echo.
 where py >nul 2>&1

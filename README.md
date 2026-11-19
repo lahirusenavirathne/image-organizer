@@ -1,6 +1,57 @@
+# Guia Lanka Photo Manager — v1.0.0-rc1
+
+**Windows photo organizer for local Sri Lankan travel photos; source release candidate.**
+
+> **Release status:** All automated core tests pass in the Linux development
+> environment. Windows GUI, pretrained models, OpenAI request and generated
+> Windows executable still require successful runs on a Windows machine and
+> GitHub Actions. Do not use on an irreplaceable library without backups.
+
+## Versioned improvements
+
+- **v0.2:** Caches unchanged AI classifications (local and cloud), protects manually
+  approved tags, tracks suggestion review and supports first-run diagnostics.
+- **v0.3:** Duplicate candidate review (SHA-256 and perceptual hash), image
+  quality scoring, rights status and review queue. Duplicate matches never delete files.
+- **v0.4:** SEO-oriented filenames and bilingual English/Spanish alt suggestions
+  in the export manifest; custom dimensions, WebP/JPEG/PNG/TIFF and gallery preset.
+- **v1.0.0-rc1:** Windows+Linux tests, Windows GUI smoke test, reproducible
+  PyInstaller build workflow and versioned release documentation.
+
+## Getting started
+
+Clone or download this repository into `C:\GLPhoto` and run
+`INSTALL_WINDOWS.bat` followed by `START_WINDOWS.bat`. Offline attraction
+recognition additionally requires `INSTALL_AI_WINDOWS.bat` and first-time
+model download. For face groups, download OpenCV face models from within the app.
+
+**Data:** Photo library and face embeddings remain in
+`%LOCALAPPDATA%\GuiaLankaPhotoManager`. The virtual environment uses
+`%LOCALAPPDATA%\GLPvenv` to reduce Windows path-length errors. Existing photo
+libraries from v0.1.2 are migrated automatically without deleting records.
+
+**Privacy/cost:** Local tagging and face grouping do not call OpenAI.
+`Cloud AI selected` explicitly asks for a key and consent before sending up
+up to 50 selected resized photographs to OpenAI. Cached identical model/image
+results avoid repeated calls unless refreshed. Resized images may still contain
+people. API usage may incur charges; there is **no guaranteed monetary hard cap**.
+
+**Safe handling:** Photo moves require an explicit preview and confirmation;
+collisions never overwrite another file; undo is recorded. Exports create new
+files and a provenance/copyright manifest. 'Verified' rights status is a user
+assertion and is not inferred from visual content. Keep backups before bulk moves.
+
+**Windows package:** The `.github/workflows/ci.yml` workflow builds an unsigned
+Windows folder artifact using PyInstaller when CI succeeds. This is not a
+signed installer and does not bundle heavyweight OpenCLIP model weights.
+
+---
+
+## Previous MVP documentation
+
 # Guia Lanka Photo Manager
 
-**Windows desktop MVP (source code) — version 0.1.2, 11 November 2026**
+**Legacy v0.1.2 setup reference (retained for troubleshooting)**
 
 A desktop app for classifying and organizing local travel photography, especially Sri Lankan attractions and experiences. The app indexes photos in a local SQLite database, presents a visual photo gallery, optionally suggests activities and attractions with local or cloud vision models, groups similar faces locally, and exports new images at precise dimensions in selected formats.
 

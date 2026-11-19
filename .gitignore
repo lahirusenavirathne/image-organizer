@@ -8,3 +8,13 @@ dist/
 *.db
 *.onnx
 *.tmp
+.env
+.env.*
+*.log
+thumbnails/
+models/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db-shm
+*.db-wal
