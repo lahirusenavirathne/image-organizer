@@ -46,6 +46,8 @@ def init(path: Path):
         con.executescript(SCHEMA)
         from .ai_cache import migrate
         migrate(con)
+        from .library_tools import migrate as migrate_library
+        migrate_library(con)
 
 def upsert(con: sqlite3.Connection, meta: dict):
     # Retain manually adjusted categories, source and license on re-scan.

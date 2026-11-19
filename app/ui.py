@@ -19,6 +19,8 @@ from .catalog import ACTIVITIES
 from .operations import preview_moves, execute_moves, undo_last_batch, export_photos
 from .faces import download_models, group_faces
 from .recognition import run_local, run_cloud, local_ai_missing, test_local_model
+from .library_tools import analyze_library, exact_duplicates, similar_pairs, set_rights
+from .ai_cache import review_pending, review as review_ai
 
 PAGE_SIZE=120
 
@@ -183,6 +185,9 @@ class Window(QMainWindow):
         self.add_action(controls,'+ Add folder',self.import_folder,True)
         self.add_action(controls,'AI tag selected',self.tag_selected)
         self.add_action(controls,'Test local AI',self.test_local_ai)
+        self.add_action(controls,'Scan quality',self.analyze_quality)
+        self.add_action(controls,'Duplicates',self.show_duplicates)
+        self.add_action(controls,'AI review queue',self.show_ai_reviews)
         self.add_action(controls,'Group faces',self.scan_faces)
         self.add_action(controls,'Get face models',self.get_models)
         self.add_action(controls,'Cloud AI selected',self.cloud_selected)
@@ -244,6 +249,8 @@ class Window(QMainWindow):
             edit=QLineEdit();edit.setPlaceholderText(label)
             self.edits[field]=edit;form.addRow(label,edit)
         v.addLayout(form)
+        self.rights_status=QComboBox();self.rights_status.addItems(['Unknown','Verified','Permission required'])
+        form.addRow('Usage rights status',self.rights_status)
         self.add_action(v,'Save reviewed metadata',self.save_details,True)
         self.source_label=QLabel('Original source folder:');self.source_label.setObjectName('Subtle')
         self.source_label.setWordWrap(True);v.addWidget(self.source_label)
@@ -412,6 +419,7 @@ class Window(QMainWindow):
                           ('source_url',row['source_url']),('artist',row['artist']),
                           ('copyright',row['copyright']),('license',row['license'])]:
             self.edits[field].setText(val or '')
+        self.rights_status.setCurrentText(row['rights_status'] or 'Unknown')
         self.source_label.setText('Original source folder:\n'+row['source_folder']+'\nOriginal file path:\n'+row['original_path'])
 
     def save_details(self):
@@ -428,6 +436,44 @@ class Window(QMainWindow):
         ids=[it.data(Qt.ItemDataRole.UserRole) for it in self.list.selectedItems()]
         if not ids: QMessageBox.information(self,'Select photos','Select one or more photos in the Photo Library. Ctrl+A selects the visible page.')
         return ids
+
+    def analyze_quality(self):
+        if QMessageBox.question(self,'Analyze entire library',
+            'Compute checksums and quality estimates for the indexed library? This reads files but does not move or delete anything.') != QMessageBox.StandardButton.Yes:return
+        self.task_start(lambda p:analyze_library(self.db_path,progress=p),self.finish_quality)
+
+    def finish_quality(self,result):
+        self.reset_page()
+        QMessageBox.information(self,'Analysis complete',
+            f"Analyzed: {result['analyzed']} | Already indexed: {result['cached']} | Errors: {len(result['errors'])}")
+
+    def show_duplicates(self):
+        with db.connect(self.db_path) as con:
+            dup=exact_duplicates(con)
+            near=similar_pairs(con,limit=40)
+        lines=[f"Exact duplicate sets: {len(dup)}; visually similar pairs (review manually): {len(near)}"]
+        for group in dup[:10]:
+            lines.append('EXACT: '+ ' | '.join(Path(x['path']).name for x in group))
+        for item in near[:20]:
+            lines.append(f"SIMILAR d={item['distance']}: {Path(item['photo_1']).name} ↔ {Path(item['photo_2']).name}")
+        if not dup and not near:lines.append('No matches indexed. Run Scan quality first.')
+        self.show_report('Duplicate review (no deletion)', '\n'.join(lines))
+
+    def show_ai_reviews(self):
+        with db.connect(self.db_path) as con:
+            pending=review_pending(con)
+        if not pending:
+            QMessageBox.information(self,'AI review queue','No unreviewed AI suggestions.');return
+        text='\n'.join(f"{Path(x['path']).name}: {x['activities']} | {x['attraction']}" for x in pending[:100])
+        self.show_report(f'Unreviewed AI suggestions ({len(pending)})',text)
+
+    def show_report(self,title,text):
+        dialog=QDialog(self);dialog.setWindowTitle(title);dialog.resize(800,520)
+        layout=QVBoxLayout(dialog);area=QTextEdit();area.setReadOnly(True)
+        area.setPlainText(text);layout.addWidget(area)
+        controls=QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        controls.rejected.connect(dialog.accept);layout.addWidget(controls)
+        dialog.exec()
 
     def tag_selected(self):
         ids=self.selected_ids()
