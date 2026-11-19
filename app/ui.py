@@ -20,6 +20,8 @@ from .operations import preview_moves, execute_moves, undo_last_batch, export_ph
 from .faces import download_models, group_faces
 from .recognition import run_local, run_cloud, local_ai_missing, test_local_model, format_local_report
 from .library_tools import analyze_library, exact_duplicates, similar_pairs, set_rights
+from .visual_search import (index_visuals, indexed_count, find_similar, set_reference,
+                            match_reference_examples, apply_reference)
 from .ai_cache import review_pending, review as review_ai
 
 PAGE_SIZE=120
@@ -113,6 +115,83 @@ class ReviewDialog(QDialog):
         buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+class SimilarityDialog(QDialog):
+    """Compare two photos before treating a visual match as a true match."""
+    def __init__(self, original_path, results, parent=None, reference_mode=False):
+        super().__init__(parent)
+        self.results = results
+        self.reference_mode = reference_mode
+        self.setWindowTitle('Visual reference matches' if reference_mode else 'Visually similar photographs')
+        self.resize(1050, 700)
+        v = QVBoxLayout(self)
+        note = QLabel('Scores are image similarity, not identification probabilities. '
+                      'A visually similar image may be a different place. No originals are moved or deleted.')
+        note.setWordWrap(True);v.addWidget(note)
+        preview_row=QHBoxLayout()
+        self.left_preview=QLabel('Selected photograph')
+        self.right_preview=QLabel('Matching photograph')
+        for label in (self.left_preview,self.right_preview):
+            label.setMinimumHeight(210)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setStyleSheet('background:#0B1220;border:1px solid #344155;border-radius:8px;')
+            preview_row.addWidget(label,1)
+        v.addLayout(preview_row)
+        self._preview(self.left_preview,original_path)
+        self.table=QTableWidget(len(results),5)
+        self.table.setHorizontalHeaderLabels(['Candidate photo','Relationship','Visual score','Hash distance','Trusted reference'])
+        self.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(4,QHeaderView.ResizeMode.Stretch)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        for row,m in enumerate(results):
+            vals=[Path(m['path']).name,m['relationship'],
+                  f"{m['cosine']:.3f}" if m['cosine'] is not None else 'Not indexed',
+                  str(m['hash_distance']) if m['hash_distance'] is not None else '-',
+                  (m.get('reference_kind') or '')+(': '+m['reference_label'] if m.get('reference_label') else '')]
+            for col,value in enumerate(vals):
+                item=QTableWidgetItem(value)
+                item.setToolTip(m['path'])
+                self.table.setItem(row,col,item)
+        self.table.itemSelectionChanged.connect(self.selection_changed)
+        v.addWidget(self.table,1)
+        self.selection_info=QLabel('Select a row to compare photographs.')
+        self.selection_info.setWordWrap(True);v.addWidget(self.selection_info)
+        buttons=QDialogButtonBox()
+        if reference_mode:
+            use=buttons.addButton('Apply selected reference label',QDialogButtonBox.ButtonRole.AcceptRole)
+            use.setObjectName('Primary')
+        buttons.addButton('Close',QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        v.addWidget(buttons)
+        if results:self.table.selectRow(0)
+
+    def _preview(self,label,path):
+        try:
+            with Image.open(path) as opened:
+                im=ImageOps.exif_transpose(opened).convert('RGB')
+                im.thumbnail((480,240),Image.Resampling.LANCZOS)
+                raw=im.tobytes('raw','RGB')
+                qimg=QImage(raw,im.width,im.height,im.width*3,QImage.Format.Format_RGB888)
+                pix=QPixmap.fromImage(qimg.copy())
+                label.setPixmap(pix)
+        except Exception as exc:
+            label.setText('Preview not available: '+str(exc))
+
+    def selection_changed(self):
+        row=self.table.currentRow()
+        if 0<=row<len(self.results):
+            item=self.results[row]
+            self._preview(self.right_preview,item['path'])
+            self.selection_info.setText(item['path']+'\n'+item['relationship']+
+                ' — Review both pictures; similarity does not prove the same attraction.')
+
+    def selected_result(self):
+        row=self.table.currentRow()
+        return self.results[row] if 0<=row<len(self.results) else None
+
+
 class Window(QMainWindow):
     def __init__(self,app_dir:Path):
         super().__init__()
@@ -199,6 +278,15 @@ class Window(QMainWindow):
         self.add_action(controls,'Undo last moves',self.undo_moves)
         self.add_action(controls,'Export selected',self.export_selected,True)
         controls.addStretch();main.addLayout(controls)
+        visual_actions=QHBoxLayout()
+        self.add_action(visual_actions,'Index selected',self.index_visual_selection)
+        self.add_action(visual_actions,'Index whole library',self.index_visual_matches)
+        self.add_action(visual_actions,'Find similar photos',self.find_similar_selected)
+        self.add_action(visual_actions,'Save as reference',self.save_visual_reference)
+        self.add_action(visual_actions,'Match reference examples',self.find_reference_selected)
+        visual_hint=QLabel('Visual search: local embeddings; no uploading or automatic file moves')
+        visual_hint.setObjectName('Subtle');visual_actions.addWidget(visual_hint)
+        visual_actions.addStretch();main.addLayout(visual_actions)
         self.ai_notice=QLabel()
         self.ai_notice.setWordWrap(True)
         self.ai_notice.setStyleSheet('color: #F6CA70; font-size:12px;')
@@ -440,6 +528,113 @@ class Window(QMainWindow):
         ids=[it.data(Qt.ItemDataRole.UserRole) for it in self.list.selectedItems()]
         if not ids: QMessageBox.information(self,'Select photos','Select one or more photos in the Photo Library. Ctrl+A selects the visible page.')
         return ids
+
+    def _one_visual_id(self):
+        ids=self.selected_ids()
+        if len(ids)!=1:
+            if ids:
+                QMessageBox.information(self,'Select one photo','Select exactly one photograph as the search example.')
+            return None
+        return ids[0]
+
+    def index_visual_selection(self):
+        ids=self.selected_ids()
+        if not ids:return
+        if QMessageBox.question(self,'Index selected visual matches',
+                f'Compute local visual fingerprints for {len(ids)} selected photos?\n'
+                'No images will be uploaded or moved.') != QMessageBox.StandardButton.Yes:
+            return
+        self.task_start(lambda progress:index_visuals(self.db_path,ids=ids,progress=progress),
+                        self.visual_index_complete)
+
+    def index_visual_matches(self):
+        with db.connect(self.db_path) as con:
+            total=con.execute('SELECT COUNT(*) FROM photos').fetchone()[0]
+            existing=indexed_count(con)
+        if not total:
+            QMessageBox.information(self,'No photos','Add a folder of images first.')
+            return
+        if QMessageBox.question(self,'Create local visual index',
+                f'Index visual fingerprints for {total:,} photos? ({existing:,} indexed already.)\n\n'
+                'Uses offline OpenCLIP and can take substantial time on CPU for 10,000 images. '
+                'Existing up-to-date fingerprints will be reused. Nothing will be uploaded or moved.') \
+                != QMessageBox.StandardButton.Yes:
+            return
+        self.task_start(lambda progress:index_visuals(self.db_path,progress=progress),
+                        self.visual_index_complete)
+
+    def visual_index_complete(self,result):
+        summary=(f"Visual index: {result['indexed']} new, {result['cached']} already indexed, "
+                 f"{result['failed']} reported errors")
+        self.status.setText(summary)
+        details='\n'.join(result['errors'][:8])
+        QMessageBox.information(self,'Visual index completed',summary+(('\n\n'+details) if details else '')+
+            '\nSelect an image and click Find similar photos.')
+
+    def find_similar_selected(self):
+        pid=self._one_visual_id()
+        if pid is None:return
+        with db.connect(self.db_path) as con:
+            count=indexed_count(con)
+            results=find_similar(con,pid,limit=40,visual_threshold=0.58)
+            source=db.photo_by_id(con,pid)['path']
+        if count<2:
+            QMessageBox.information(self,'Visual index needed',
+                'Click Index selected or Index whole library first. The existing Scan quality action only detects '
+                'exact or near-duplicate photographs, not different photos of the same subject.')
+            return
+        if not results:
+            QMessageBox.information(self,'No similar photos found',
+                'No matches currently exceed the visual threshold. Try indexing all photos '
+                'or choose another example image.')
+            return
+        SimilarityDialog(source,results,self).exec()
+
+    def save_visual_reference(self):
+        pid=self._one_visual_id()
+        if pid is None:return
+        kind,okay=QInputDialog.getItem(self,'Trusted visual reference','What does this example represent?',
+                                      ['Attraction','Activity','Location'],0,False)
+        if not okay:return
+        label,okay=QInputDialog.getText(self,'Trusted visual reference',
+                   'Enter a label you have verified (for example Nine Arch Bridge):')
+        if not okay:return
+        try:
+            with db.connect(self.db_path) as con:set_reference(con,pid,kind,label)
+        except ValueError as exc:
+            QMessageBox.warning(self,'Reference not saved',str(exc));return
+        QMessageBox.information(self,'Reference saved',
+            f'Added verified example: {kind} — {label.strip()}.\n\n'
+            'Other photos can now be compared with this example using Match reference examples. '
+            'This does not automatically assign tags.')
+
+    def find_reference_selected(self):
+        pid=self._one_visual_id()
+        if pid is None:return
+        try:
+            with db.connect(self.db_path) as con:
+                matches=match_reference_examples(con,pid)
+                source=db.photo_by_id(con,pid)['path']
+        except (RuntimeError,OSError,ValueError) as exc:
+            QMessageBox.warning(self,'Reference search unavailable',str(exc));return
+        if not matches:
+            QMessageBox.information(self,'No indexed reference examples',
+                 'Save one or more trusted photos as reference examples and click Index selected (or Index whole library).')
+            return
+        dlg=SimilarityDialog(source,matches,self,reference_mode=True)
+        if dlg.exec()!=QDialog.DialogCode.Accepted:return
+        match=dlg.selected_result()
+        if not match:return
+        prompt=(f"Copy the trusted '{match['reference_kind']}' label "
+                f"'{match['reference_label']}' to the selected photo?\n\n"
+                f"Similarity score: {match['cosine']:.3f} (not a probability).\n"
+                'Confirm only if you visually verified both photographs.')
+        if QMessageBox.question(self,'Confirm manual reference tag',prompt) != QMessageBox.StandardButton.Yes:
+            return
+        with db.connect(self.db_path) as con:
+            applied=apply_reference(con,pid,match['id'])
+        self.load_page()
+        self.status.setText(f"Approved reference label: {applied['kind']} — {applied['label']}")
 
     def analyze_quality(self):
         if QMessageBox.question(self,'Analyze entire library',

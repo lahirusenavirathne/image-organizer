@@ -1,6 +1,6 @@
 # Guia Lanka Photo Manager — v1.0.0-rc2
 
-**Windows photo organizer for local Sri Lankan travel photos; source release candidate.**
+**Windows photo organizer for local Sri Lankan travel photos; source release candidate with visual similarity search.**
 
 **v1.0.0-rc2 tagging diagnostics:** Select 2-5 photos and click **Refresh AI selected** to bypass previous cached predictions. The detailed result window distinguishes analyzed images, unclassified images, cached predictions, protected manual tags and errors. It displays the top three raw OpenCLIP activity/attraction candidates, even if no automatic tags pass the thresholds. Similarity numbers are not calibrated probabilities. Manually reviewed fields remain protected. This is a diagnostic change, not a validated improvement in actual attraction-identification accuracy.
 
@@ -10,8 +10,30 @@
 > Windows executable still require successful runs on a Windows machine and
 > GitHub Actions. Do not use on an irreplaceable library without backups.
 
+## Visually match photos — new in v1.0.0-rc3
+
+This is **image-to-image search**, not merely guessing labels from text. The app uses three distinct types of matching:
+
+1. **Exact duplicate:** SHA-256 finds byte-identical files, even if filenames differ.
+2. **Likely edited copy:** a perceptual dHash plus average-color check finds many resized or recompressed copies. Cropping, rotations and strong color edits may not match; manually verify each candidate.
+3. **Visually similar:** local OpenCLIP image embeddings retrieve photos with similar content, even when they are separate shots. A high cosine score does **not** prove the same landmark, person or ownership.
+
+### Five-photo test procedure
+
+1. Import a folder containing two photographs of the same place (different camera angles), a resized copy of one, an exact duplicate renamed, and an unrelated photo.
+2. Select the five photos, then click **Index selected**. The first run loads the installed offline OpenCLIP model; later runs reuse fingerprints unless files change.
+3. Select one photo and click **Find similar photos**. Compare exact, likely-edited and visually-similar results side-by-side.
+4. Choose a photo whose attraction/activity/location you **personally verified** and click **Save as reference**. Enter its correct label.
+5. Select another photo and click **Match reference examples**. Inspect suggested reference photographs and scores. **Apply selected reference label** only after confirming the match visually.
+6. When satisfied, click **Index whole library** to build/search across your ~10,000 photographs. CPU-only indexing can take significant time. It is resumable and does not upload photos or alter originals.
+
+These tools work offline and do not require an OpenAI API key. They use the local AI installation from `INSTALL_AI_WINDOWS.bat`. Source URLs and licensing are not inferred from image resemblance. A reference photo does not authorize copying its copyright information to another file.
+
+**Limits:** The 64-bit dHash may confuse similarly structured images, and OpenCLIP may rank a different waterfall, temple or national park highly. Its cosine scores are not calibrated confidence values; always review matches before adding precise attraction names or moving files. The reference workflow transfers labels only after an explicit approval. No neural biometric recognition is used for matching people here; face grouping remains a separate local tool.
+
 ## Versioned improvements
 
+- **v1.0.0-rc3:** Adds side-by-side visual duplicate/similar-photo matching and user-verified reference examples.
 - **v0.2:** Caches unchanged AI classifications (local and cloud), protects manually
   approved tags, tracks suggestion review and supports first-run diagnostics.
 - **v0.3:** Duplicate candidate review (SHA-256 and perceptual hash), image

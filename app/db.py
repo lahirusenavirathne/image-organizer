@@ -48,6 +48,8 @@ def init(path: Path):
         migrate(con)
         from .library_tools import migrate as migrate_library
         migrate_library(con)
+        from .visual_search import migrate as migrate_visual
+        migrate_visual(con)
 
 def upsert(con: sqlite3.Connection, meta: dict):
     # Retain manually adjusted categories, source and license on re-scan.

@@ -1,3 +1,12 @@
+## 1.0.0-rc3 — Local visual similarity search and trusted photo references
+
+- Added **Index selected** and **Index whole library** to compute and cache local OpenCLIP image embeddings with SHA-256 and dHash fingerprints.
+- Added **Find similar photos** with side-by-side previews: exact byte duplicates, likely edited copies, and visually similar photographs are separate categories.
+- Added color-distance filtering to reduce dHash false matches for substantially different images with identical shape signatures.
+- Added **Save as reference** and **Match reference examples**: user-provided examples of Sri Lankan attractions, activities and locations can help identify similar imagery. Labels are copied only after explicit visual review and confirmation.
+- Added six regression tests (29 total passing), safe database migrations and a dedicated visual-match guide.
+- Similarity scores are cosine values, **not calibrated probabilities**. Recognition of the same landmark from another viewpoint is not guaranteed. No original files are moved or deleted by these tools.
+
 ## 1.0.0-rc2 - Classification diagnostics
 
 - Explain empty tagging: top candidate similarity scores, threshold reasons and per-photo outcomes.

@@ -16,6 +16,7 @@ def migrate(con):
     for key,definition in {
         'checksum':'TEXT NOT NULL DEFAULT \'\'',
         'dhash':'TEXT NOT NULL DEFAULT \'\'',
+        'color_mean':"TEXT NOT NULL DEFAULT ''",
         'quality_score':'REAL',
         'analysis_signature':'TEXT NOT NULL DEFAULT \'\'',
         'rights_status':"TEXT NOT NULL DEFAULT 'Unknown'",
@@ -39,36 +40,38 @@ def image_signals(path: Path):
         image=ImageOps.exif_transpose(opened).convert('RGB')
         gray=ImageOps.grayscale(image)
         small=gray.resize((9,8),Image.Resampling.LANCZOS)
-        pixels=list(small.getdata())
+        pixels=small.tobytes()
         flags=[pixels[y*9+x] > pixels[y*9+x+1] for y in range(8) for x in range(8)]
         bitset=sum(int(bit) << i for i,bit in enumerate(flags))
         # Sharpness proxy: variance of edges, normalized to an approximate 0-100 score.
         reduced=gray.copy();reduced.thumbnail((800,800))
         v=ImageStat.Stat(reduced.filter(ImageFilter.FIND_EDGES)).var[0]
         quality=round(min(100.,max(0.,v/15.)),1)
-    return f'{bitset:016x}', quality
+        rgb=ImageStat.Stat(image.resize((16,16),Image.Resampling.BILINEAR)).mean
+        color=''.join(f'{round(channel):02x}' for channel in rgb)
+    return f'{bitset:016x}', quality, color
 
 
 def analyze_library(db_path, ids=None, progress=None):
     done=skipped=0;errors=[]
     with connect(db_path) as con:
         if ids is None:
-            photos=con.execute('SELECT id,path,analysis_signature FROM photos ORDER BY id').fetchall()
+            photos=con.execute('SELECT id,path,analysis_signature,color_mean FROM photos ORDER BY id').fetchall()
         else:
             photos=[]
             for pid in dict.fromkeys(ids):
-                row=con.execute('SELECT id,path,analysis_signature FROM photos WHERE id=?',(pid,)).fetchone()
+                row=con.execute('SELECT id,path,analysis_signature,color_mean FROM photos WHERE id=?',(pid,)).fetchone()
                 if row:photos.append(row)
         for n,row in enumerate(photos,1):
             src=Path(row['path'])
             try:
                 stat=src.stat();sig=f'{stat.st_size}:{stat.st_mtime_ns}'
-                if row['analysis_signature']==sig:
+                if row['analysis_signature']==sig and row['color_mean']:
                     skipped+=1;continue
                 checksum=hash_file(src)
-                dhash,quality=image_signals(src)
-                con.execute('''UPDATE photos SET checksum=?,dhash=?,quality_score=?,
-                               analysis_signature=? WHERE id=?''',(checksum,dhash,quality,sig,row['id']))
+                dhash,quality,color=image_signals(src)
+                con.execute('''UPDATE photos SET checksum=?,dhash=?,color_mean=?,quality_score=?,
+                               analysis_signature=? WHERE id=?''',(checksum,dhash,color,quality,sig,row['id']))
                 done+=1
                 if done%25==0:con.commit()
             except Exception as exc:
@@ -86,26 +89,38 @@ def exact_duplicates(con):
                     (item['checksum'],)).fetchall()] for item in groups]
 
 
+def color_distance(left: str, right: str) -> float:
+    """Mean RGB distance, helping reject flat-color dHash false positives."""
+    try:
+        if len(left)!=6 or len(right)!=6: return 256.0
+        return sum(abs(int(left[i:i+2],16)-int(right[i:i+2],16)) for i in (0,2,4))/3.0
+    except ValueError:
+        return 256.0
+
+
 def similar_pairs(con, max_distance=4, limit=300):
     """Locality-sensitive buckets avoid comparing every pair in a large library.
 
     With eight 8-bit segments, photos <= 4 bits apart must share a segment.
     """
-    rows=con.execute("SELECT id,path,dhash FROM photos WHERE dhash!='' ORDER BY id").fetchall()
+    rows=con.execute("SELECT id,path,dhash,color_mean FROM photos WHERE dhash!='' ORDER BY id").fetchall()
     buckets=defaultdict(list)
     for row in rows:
         value=int(row['dhash'],16)
         for segment in range(8):
-            buckets[(segment,(value>>(segment*8)) & 0xff)].append((row['id'],row['path'],value))
+            buckets[(segment,(value>>(segment*8)) & 0xff)].append((row['id'],row['path'],value,row['color_mean']))
     seen=set();pairs=[]
     for choices in buckets.values():
-        for i,(left_id,left_path,left_hash) in enumerate(choices):
-            for right_id,right_path,right_hash in choices[i+1:]:
+        for i,(left_id,left_path,left_hash,left_color) in enumerate(choices):
+            for right_id,right_path,right_hash,right_color in choices[i+1:]:
                 key=(left_id,right_id)
                 if key in seen:continue
                 seen.add(key)
                 distance=(left_hash^right_hash).bit_count()
                 if distance<=max_distance:
+                    # Old imports may lack color fingerprints; prefer refreshed scans.
+                    if left_color and right_color and color_distance(left_color,right_color)>80:
+                        continue
                     pairs.append({'photo_1':left_path,'photo_2':right_path,'distance':distance})
                     if len(pairs)>=limit:return pairs
     return pairs
