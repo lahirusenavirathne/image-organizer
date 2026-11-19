@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QListWidget, QListWidgetItem, QListView, QComboBox,
     QVBoxLayout, QHBoxLayout, QFormLayout, QSplitter, QScrollArea, QTabWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QSpinBox, QDialog, QDialogButtonBox,
-    QProgressBar, QGroupBox, QInputDialog, QAbstractItemView
+    QProgressBar, QGroupBox, QInputDialog, QAbstractItemView, QCheckBox
 )
 from PIL import Image, ImageOps
 from . import db
@@ -69,7 +69,7 @@ class ExportDialog(QDialog):
         layout=QVBoxLayout(self)
         form=QFormLayout()
         self.preset=QComboBox()
-        self.preset.addItems(['Custom','Blog thumbnail 272 x 300','Website 1200 x 800','Social square 1080 x 1080','Social portrait 1080 x 1350','Full HD 1920 x 1080'])
+        self.preset.addItems(['Custom','Blog thumbnail 272 x 300','Website 1200 x 800','Social square 1080 x 1080','Social portrait 1080 x 1350','Full HD 1920 x 1080','Portrait gallery 1200 x 1600'])
         self.preset.currentIndexChanged.connect(self.use_preset)
         self.width=QSpinBox(); self.width.setRange(0,16000); self.width.setValue(1200)
         self.height=QSpinBox(); self.height.setRange(0,16000); self.height.setValue(800)
@@ -80,12 +80,15 @@ class ExportDialog(QDialog):
                               ('Output format',self.format),('Fit mode',self.mode),('JPEG/WebP quality',self.quality)]:
             form.addRow(title,control)
         layout.addLayout(form)
+        self.seo_names=QCheckBox('SEO-friendly filenames and bilingual alt text (ES/EN) in CSV')
+        self.seo_names.setChecked(True)
+        layout.addWidget(self.seo_names)
         info=QLabel('0 in one dimension preserves aspect ratio. Exports are new files; a CSV manifest records copyright and provenance.')
         info.setWordWrap(True); info.setObjectName('Subtle');layout.addWidget(info)
         controls=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
         controls.accepted.connect(self.accept);controls.rejected.connect(self.reject);layout.addWidget(controls)
     def use_preset(self,index):
-        vals={1:(272,300),2:(1200,800),3:(1080,1080),4:(1080,1350),5:(1920,1080)}
+        vals={1:(272,300),2:(1200,800),3:(1080,1080),4:(1080,1350),5:(1920,1080),6:(1200,1600)}
         if index in vals: self.width.setValue(vals[index][0]);self.height.setValue(vals[index][1])
 
 class ReviewDialog(QDialog):
@@ -591,7 +594,8 @@ class Window(QMainWindow):
         folder=QFileDialog.getExistingDirectory(self,'Select export destination')
         if not folder:return
         values={'width':dlg.width.value(),'height':dlg.height.value(),
-                'fmt':dlg.format.currentText(),'mode':dlg.mode.currentText(),'quality':dlg.quality.value()}
+                'fmt':dlg.format.currentText(),'mode':dlg.mode.currentText(),'quality':dlg.quality.value(),
+                'seo_names':dlg.seo_names.isChecked()}
         self.task_start(lambda p:export_photos(self.db_path,ids,Path(folder),progress=p,**values),self.finish_export)
 
     def finish_export(self,result):

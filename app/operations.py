@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from PIL import Image, ImageOps
 from .db import connect, photo_by_id
+from .seo import alt_text, export_basename
 
 INVALID = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 RESERVED = {'CON','PRN','AUX','NUL',*(f'COM{i}' for i in range(1,10)),*(f'LPT{i}' for i in range(1,10))}
@@ -164,7 +165,7 @@ def export_image(source: Path, target: Path, width: int, height: int, mode: str,
     else: raise ValueError('Unsupported export format')
 
 def export_photos(db_path: Path, ids: list[int], destination: Path, *, width:int,
-                  height:int, mode:str, fmt:str, quality:int, progress=None):
+                  height:int, mode:str, fmt:str, quality:int, progress=None, seo_names=False):
     if width<0 or height<0 or max(width,height)>16000: raise ValueError('Dimensions must be between 0 and 16000 pixels')
     if not width and not height: raise ValueError('Specify at least one dimension')
     if fmt not in FORMAT_SUFFIX: raise ValueError('Invalid format')
@@ -177,10 +178,13 @@ def export_photos(db_path: Path, ids: list[int], destination: Path, *, width:int
             row=photo_by_id(con,pid)
             if not row: continue
             src=Path(row['path'])
-            dst=unique_path(destination / (safe_part(src.stem,'Photo') + FORMAT_SUFFIX[fmt]),reserved)
+            name=export_basename(row,src.stem) if seo_names else safe_part(src.stem,'Photo')
+            dst=unique_path(destination / (name + FORMAT_SUFFIX[fmt]),reserved)
             try:
                 export_image(src,dst,width,height,mode,fmt,quality)
-                entries.append({'exported_path':str(dst),'original_path':row['original_path'],
+                alt_en,alt_es=alt_text(row)
+                entries.append({'exported_path':str(dst),'alt_text_en':alt_en,'alt_text_es':alt_es,
+                    'rights_status':row['rights_status'],'original_path':row['original_path'],
                     'current_path':str(src),'location':row['location'],'attraction':row['attraction'],
                     'activities':', '.join(json.loads(row['activities'])),
                     'photographer':row['artist'],'copyright':row['copyright'],
