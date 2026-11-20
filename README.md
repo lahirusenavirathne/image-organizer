@@ -1,4 +1,4 @@
-# Guia Lanka Photo Manager — v1.0.0-rc2
+# Guia Lanka Photo Manager — v1.0.0-rc4
 
 **Windows photo organizer for local Sri Lankan travel photos; source release candidate with visual similarity search.**
 
@@ -9,6 +9,21 @@
 > environment. Windows GUI, pretrained models, OpenAI request and generated
 > Windows executable still require successful runs on a Windows machine and
 > GitHub Actions. Do not use on an irreplaceable library without backups.
+
+## Modern desktop interface — v1.0.0-rc4
+
+The Windows app now uses a **real native PySide6 light-themed desktop layout**, replacing the earlier dense dark toolbar. This is implemented code, not a mockup.
+
+- Persistent left navigation: **All photos, Locations, Activities, People, Review tags, Exports**.
+- Search as you type, collapsible location/activity filters, responsive thumbnail gallery, and a compact card toggle.
+- Click a photo for a collapsible metadata inspector; double-click for an enlarged preview.
+- Frequently used actions (Import, AI tag, Find similar, Export) are on the toolbar. Other existing tools are under **More** (including local AI diagnostics, cloud opt-in, face groups, safe moves, duplicates and reference matching).
+- Clear ready/progress status and pagination (120 images per page).
+- Fixes **rights verification status** not being persisted when Save reviewed metadata was clicked.
+
+**Upgrade:** Download this version and replace the application source folder, keeping `%LOCALAPPDATA%\GuiaLankaPhotoManager` untouched. Run `START_WINDOWS.bat`. Normally, you do not need to reinstall AI packages. If base dependencies are missing, run `INSTALL_WINDOWS.bat` first. Keep a backup of the database before major upgrades.
+
+**Verification:** Core unit tests pass; optional PySide6 UI smoke tests are included for Windows CI. The Qt UI could not be launched in the authoring environment because PySide6 is unavailable. Windows desktop appearance and build artifact require on-device / CI verification.
 
 ## Visually match photos — new in v1.0.0-rc3
 
@@ -33,6 +48,7 @@ These tools work offline and do not require an OpenAI API key. They use the loca
 
 ## Versioned improvements
 
+- **v1.0.0-rc4:** Replaces dense toolbar with native light sidebar, photo cards, smart filters and inspector.
 - **v1.0.0-rc3:** Adds side-by-side visual duplicate/similar-photo matching and user-verified reference examples.
 - **v0.2:** Caches unchanged AI classifications (local and cloud), protects manually
   approved tags, tracks suggestion review and supports first-run diagnostics.

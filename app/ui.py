@@ -5,13 +5,14 @@ import json
 from pathlib import Path
 from typing import Callable
 from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
-from PySide6.QtGui import QIcon, QPixmap, QImage, QAction
+from PySide6.QtGui import QIcon, QPixmap, QImage, QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton, QLineEdit, QTextEdit,
     QFileDialog, QMessageBox, QListWidget, QListWidgetItem, QListView, QComboBox,
     QVBoxLayout, QHBoxLayout, QFormLayout, QSplitter, QScrollArea, QTabWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QSpinBox, QDialog, QDialogButtonBox,
-    QProgressBar, QGroupBox, QInputDialog, QAbstractItemView, QCheckBox
+    QProgressBar, QGroupBox, QInputDialog, QAbstractItemView, QCheckBox,
+    QFrame, QToolButton, QMenu
 )
 from PIL import Image, ImageOps
 from . import db
@@ -23,35 +24,10 @@ from .library_tools import analyze_library, exact_duplicates, similar_pairs, set
 from .visual_search import (index_visuals, indexed_count, find_similar, set_reference,
                             match_reference_examples, apply_reference)
 from .ai_cache import review_pending, review as review_ai
+from .modern_widgets import STYLE, PhotoCardDelegate
 
 PAGE_SIZE=120
 
-STYLE="""
-QMainWindow, QWidget { background:#111827; color:#E5E7EB; font-family:'Segoe UI',Arial; font-size:12px; }
-QWidget#MainPanel { background:#172033; }
-QLabel#Title { color:white; font-size:22px; font-weight:700; }
-QLabel#Subtle { color:#A3B2C8; }
-QLineEdit, QTextEdit, QComboBox, QSpinBox, QTableWidget, QListWidget {
- background:#1F2937; color:#F3F4F6; border:1px solid #384659; padding:7px; border-radius:7px;
- selection-background-color:#16735D; selection-color:white; }
-QListWidget { padding:8px; }
-QListWidget::item { padding:5px; border-radius:8px; }
-QListWidget::item:selected { background:#176C58; border:1px solid #36B492; }
-QPushButton { background:#26394B; color:white; padding:9px 13px; border:1px solid #3A5368; border-radius:7px; font-weight:600; }
-QPushButton:hover { background:#37556A; }
-QPushButton:disabled { color:#6B7280; background:#202938; }
-QPushButton#Primary { background:#14846C; border:1px solid #189B7C; }
-QPushButton#Primary:hover { background:#189A7E; }
-QTabWidget::pane { border:1px solid #344155; }
-QTabBar::tab { color:#A3B2C8; background:#1F2937; padding:10px 22px; }
-QTabBar::tab:selected { color:white; background:#16735D; }
-QHeaderView::section { background:#28384B; color:white; padding:8px; }
-QGroupBox { border:1px solid #344155; border-radius:8px; margin-top:12px; padding:12px; font-weight:600; }
-QGroupBox::title { subcontrol-origin:margin; left:12px; padding:0 5px; }
-QProgressBar { background:#28384B; border:0; border-radius:5px; height:7px; }
-QProgressBar::chunk { background:#18A77F; border-radius:5px; }
-QScrollArea { border:0; }
-"""
 
 class Task(QThread):
     progress=Signal(str)
@@ -208,9 +184,9 @@ class Window(QMainWindow):
         self.current_id=None
         self.task=None
         self.action_buttons=[]
-        self.setWindowTitle('Guia Lanka Photo Manager  •  Local-first photo intelligence')
-        self.resize(1440,850)
-        self.setMinimumSize(990,650)
+        self.setWindowTitle('Guia Lanka Photo Manager  |  Photo Library')
+        self.resize(1500,930)
+        self.setMinimumSize(1040,700)
         self.setStyleSheet(STYLE)
         self.build_ui()
         self.load_page()
@@ -251,136 +227,410 @@ class Window(QMainWindow):
         return b
 
     def build_ui(self):
-        root=QWidget(); self.setCentralWidget(root)
-        main=QVBoxLayout(root); main.setContentsMargins(16,14,16,10);main.setSpacing(12)
-        title_row=QHBoxLayout()
-        brand=QVBoxLayout()
-        t=QLabel('GUIA LANKA  /  PHOTO MANAGER');t.setObjectName('Title')
-        brand.addWidget(t)
-        subtitle=QLabel('Offline library  ·  AI attraction tags  ·  local faces  ·  review-first moves  ·  export presets')
-        subtitle.setObjectName('Subtle');brand.addWidget(subtitle)
-        title_row.addLayout(brand);title_row.addStretch()
-        self.total_label=QLabel('0 photos indexed')
-        title_row.addWidget(self.total_label);main.addLayout(title_row)
+        # Navigation is a persistent left-hand rail, not a row of 20 tiny buttons.
+        root = QWidget()
+        self.setCentralWidget(root)
+        shell = QHBoxLayout(root)
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(0)
 
-        controls=QHBoxLayout();controls.setSpacing(7)
-        self.add_action(controls,'+ Add folder',self.import_folder,True)
-        self.add_action(controls,'AI tag selected',self.tag_selected)
-        self.add_action(controls,'Refresh AI selected',self.refresh_ai_selected)
-        self.add_action(controls,'Test local AI',self.test_local_ai)
-        self.add_action(controls,'Scan quality',self.analyze_quality)
-        self.add_action(controls,'Duplicates',self.show_duplicates)
-        self.add_action(controls,'AI review queue',self.show_ai_reviews)
-        self.add_action(controls,'Group faces',self.scan_faces)
-        self.add_action(controls,'Get face models',self.get_models)
-        self.add_action(controls,'Cloud AI selected',self.cloud_selected)
-        self.add_action(controls,'Review moves',self.move_selected)
-        self.add_action(controls,'Undo last moves',self.undo_moves)
-        self.add_action(controls,'Export selected',self.export_selected,True)
-        controls.addStretch();main.addLayout(controls)
-        visual_actions=QHBoxLayout()
-        self.add_action(visual_actions,'Index selected',self.index_visual_selection)
-        self.add_action(visual_actions,'Index whole library',self.index_visual_matches)
-        self.add_action(visual_actions,'Find similar photos',self.find_similar_selected)
-        self.add_action(visual_actions,'Save as reference',self.save_visual_reference)
-        self.add_action(visual_actions,'Match reference examples',self.find_reference_selected)
-        visual_hint=QLabel('Visual search: local embeddings; no uploading or automatic file moves')
-        visual_hint.setObjectName('Subtle');visual_actions.addWidget(visual_hint)
-        visual_actions.addStretch();main.addLayout(visual_actions)
-        self.ai_notice=QLabel()
-        self.ai_notice.setWordWrap(True)
-        self.ai_notice.setStyleSheet('color: #F6CA70; font-size:12px;')
-        main.addWidget(self.ai_notice)
-        self.refresh_ai_notice()
+        sidebar = QFrame()
+        sidebar.setObjectName('Sidebar')
+        sidebar.setFixedWidth(210)
+        side = QVBoxLayout(sidebar)
+        side.setContentsMargins(15, 21, 15, 18)
+        side.setSpacing(6)
+        brand = QLabel('◉  GUIA LANKA')
+        brand.setObjectName('Brand')
+        side.addWidget(brand)
+        edition = QLabel('PHOTO MANAGER  /  LOCAL LIBRARY')
+        edition.setObjectName('Tiny')
+        edition.setWordWrap(True)
+        side.addWidget(edition)
+        side.addSpacing(30)
+        section = QLabel('LIBRARY')
+        section.setObjectName('Tiny')
+        side.addWidget(section)
+        side.addSpacing(5)
+        self.nav_buttons = {}
+        for key, text in [
+            ('all', '▦    All photos'),
+            ('locations', '⌖    Locations'),
+            ('activities', '◈    Activities'),
+            ('people', '♙    People'),
+            ('review', '◇    Review tags'),
+            ('exports', '⇩    Exports')]:
+            button = QPushButton(text)
+            button.setObjectName('NavButton')
+            button.setProperty('active', key == 'all')
+            button.setMinimumHeight(40)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(lambda checked=False, name=key: self.navigate(name))
+            side.addWidget(button)
+            self.nav_buttons[key] = button
+        side.addStretch()
+        side.addWidget(QLabel('ORGANIZE SAFELY'))
+        helper = QLabel('Local photo library\nNo automatic file moves\nUnknown rights stay unknown')
+        helper.setObjectName('Subtle')
+        helper.setWordWrap(True)
+        side.addWidget(helper)
+        shell.addWidget(sidebar)
 
-        self.tabs=QTabWidget();main.addWidget(self.tabs,1)
-        photos=QWidget();self.tabs.addTab(photos,'Photo Library')
-        photo_layout=QVBoxLayout(photos)
-        filters=QHBoxLayout()
-        self.search=QLineEdit();self.search.setPlaceholderText('Search filename, attraction, tags, source, copyright…')
+        workspace = QWidget()
+        workspace.setObjectName('Workspace')
+        shell.addWidget(workspace, 1)
+        main = QVBoxLayout(workspace)
+        main.setContentsMargins(22, 21, 22, 12)
+        main.setSpacing(13)
+        heading = QHBoxLayout()
+        heading_text = QVBoxLayout()
+        heading_text.setSpacing(3)
+        self.heading_title = QLabel('Photo Library')
+        self.heading_title.setObjectName('Headline')
+        heading_text.addWidget(self.heading_title)
+        self.heading_description = QLabel('Find, review and organize your Sri Lankan travel photography')
+        self.heading_description.setObjectName('Subtle')
+        heading_text.addWidget(self.heading_description)
+        heading.addLayout(heading_text, 1)
+        self.total_label = QLabel('0 photos indexed')
+        self.total_label.setObjectName('Count')
+        heading.addWidget(self.total_label)
+        self.add_action(heading, '+  Add photos', self.import_folder, True)
+        main.addLayout(heading)
+
+        toolbar = QFrame()
+        toolbar.setObjectName('Toolbar')
+        toolbar_row = QHBoxLayout(toolbar)
+        toolbar_row.setContentsMargins(12, 10, 12, 10)
+        toolbar_row.setSpacing(8)
+        self.search = QLineEdit()
+        self.search.setObjectName('SearchInput')
+        self.search.setPlaceholderText('Search elephants in Yala, filenames, locations, attractions...')
+        self.search.setClearButtonEnabled(True)
+        self.search.setMinimumHeight(39)
         self.search.returnPressed.connect(self.reset_page)
-        filters.addWidget(self.search,4)
-        self.locations=QComboBox();self.locations.setMinimumWidth(150)
-        self.locations.addItem('All locations','');self.locations.currentIndexChanged.connect(self.reset_page)
-        filters.addWidget(self.locations,1)
-        self.activities=QComboBox();self.activities.addItem('All activities','')
-        for name in ACTIVITIES: self.activities.addItem(name,name)
-        self.activities.currentIndexChanged.connect(self.reset_page)
-        filters.addWidget(self.activities,1)
-        self.add_action(filters,'Search / refresh',self.reset_page)
-        self.add_action(filters,'Clear filters',self.clear_filters)
-        photo_layout.addLayout(filters)
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(320)
+        self.search_timer.timeout.connect(self.reset_page)
+        self.search.textChanged.connect(lambda _value: self.search_timer.start())
+        toolbar_row.addWidget(self.search, 1)
+        self.filter_toggle = QToolButton()
+        self.filter_toggle.setText('☷  Filters')
+        self.filter_toggle.setCheckable(True)
+        self.filter_toggle.toggled.connect(self.toggle_filters)
+        self.filter_toggle.setToolTip('Filter by location and activity')
+        toolbar_row.addWidget(self.filter_toggle)
+        self.add_action(toolbar_row, 'AI tag', self.tag_selected)
+        self.add_action(toolbar_row, 'Find similar', self.find_similar_selected)
+        self.add_action(toolbar_row, 'Export selected', self.export_selected, True)
+        more = QToolButton()
+        more.setText('More ▾')
+        more.setToolTip('Additional recognition and organization tools')
+        more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.more_menu = QMenu(more)
+        more.setMenu(self.more_menu)
+        self._build_more_menu()
+        toolbar_row.addWidget(more)
+        main.addWidget(toolbar)
 
-        splitter=QSplitter(Qt.Orientation.Horizontal)
-        self.list=QListWidget()
+        self.filter_panel = QFrame()
+        self.filter_panel.setObjectName('FilterPanel')
+        filter_row = QHBoxLayout(self.filter_panel)
+        filter_row.setContentsMargins(12, 11, 12, 11)
+        filter_row.setSpacing(11)
+        filter_row.addWidget(QLabel('Location'))
+        self.locations = QComboBox()
+        self.locations.setMinimumWidth(190)
+        self.locations.addItem('All locations', '')
+        self.locations.currentIndexChanged.connect(self.reset_page)
+        filter_row.addWidget(self.locations)
+        filter_row.addWidget(QLabel('Activity'))
+        self.activities = QComboBox()
+        self.activities.setMinimumWidth(200)
+        self.activities.addItem('All activities', '')
+        for name in ACTIVITIES:
+            self.activities.addItem(name, name)
+        self.activities.currentIndexChanged.connect(self.reset_page)
+        filter_row.addWidget(self.activities)
+        self.add_action(filter_row, 'Clear filters', self.clear_filters)
+        filter_row.addStretch()
+        self.filter_panel.hide()
+        main.addWidget(self.filter_panel)
+
+        self.tabs = QTabWidget()
+        self.tabs.tabBar().hide()
+        self.tabs.setDocumentMode(True)
+        main.addWidget(self.tabs, 1)
+        photos = QWidget()
+        photos.setObjectName('PhotoArea')
+        self.tabs.addTab(photos, 'Photo Library')
+        photo_layout = QVBoxLayout(photos)
+        photo_layout.setContentsMargins(0, 0, 0, 0)
+        photo_layout.setSpacing(8)
+        gallery_info = QHBoxLayout()
+        self.gallery_title = QLabel('All photographs')
+        self.gallery_title.setObjectName('SectionTitle')
+        gallery_info.addWidget(self.gallery_title)
+        self.selection_label = QLabel('Select photos to classify, compare or export')
+        self.selection_label.setObjectName('Subtle')
+        gallery_info.addWidget(self.selection_label)
+        gallery_info.addStretch()
+        compact = QToolButton()
+        compact.setText('⊞  Compact')
+        compact.setToolTip('Toggle smaller photo cards')
+        compact.setCheckable(True)
+        compact.toggled.connect(self.toggle_grid_density)
+        gallery_info.addWidget(compact)
+        photo_layout.addLayout(gallery_info)
+
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
+        left = QWidget()
+        left_v = QVBoxLayout(left)
+        left_v.setContentsMargins(0, 0, 0, 0)
+        self.list = QListWidget()
+        self.list.setObjectName('PhotoGrid')
+        self.list.setItemDelegate(PhotoCardDelegate(self.list))
         self.list.setViewMode(QListView.ViewMode.IconMode)
         self.list.setResizeMode(QListView.ResizeMode.Adjust)
         self.list.setFlow(QListView.Flow.LeftToRight)
         self.list.setWrapping(True)
         self.list.setMovement(QListView.Movement.Static)
-        self.list.setIconSize(QSize(144,114))
-        self.list.setGridSize(QSize(184,164))
+        self.list.setIconSize(QSize(230, 146))
+        self.list.setGridSize(QSize(252, 234))
+        self.list.setSpacing(2)
         self.list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.list.itemSelectionChanged.connect(self.select_photo)
-        splitter.addWidget(self.list)
-        right=QScrollArea();right.setWidgetResizable(True)
-        panel=QWidget();panel.setObjectName('MainPanel')
-        v=QVBoxLayout(panel);v.setContentsMargins(15,12,15,12);v.setSpacing(10)
-        self.photo_title=QLabel('Select an image');self.photo_title.setWordWrap(True)
-        v.addWidget(self.photo_title)
-        self.preview=QLabel('Photo preview')
-        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview.setMinimumHeight(235)
-        self.preview.setStyleSheet('background:#0B1220; border:1px solid #32455C; border-radius:8px;')
-        v.addWidget(self.preview)
-        self.technical=QLabel('');self.technical.setObjectName('Subtle');self.technical.setWordWrap(True);v.addWidget(self.technical)
-        form=QFormLayout(); form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        self.edits={}
-        for field,label in [('location','Location'),('activity','Activities (comma separated)'),('attraction','Attraction'),
-                            ('source_url','Source website URL'),('artist','Photographer'),('copyright','Copyright'),('license','License / usage rights')]:
-            edit=QLineEdit();edit.setPlaceholderText(label)
-            self.edits[field]=edit;form.addRow(label,edit)
-        v.addLayout(form)
-        self.rights_status=QComboBox();self.rights_status.addItems(['Unknown','Verified','Permission required'])
-        form.addRow('Usage rights status',self.rights_status)
-        self.add_action(v,'Save reviewed metadata',self.save_details,True)
-        self.source_label=QLabel('Original source folder:');self.source_label.setObjectName('Subtle')
-        self.source_label.setWordWrap(True);v.addWidget(self.source_label)
-        v.addStretch()
-        right.setWidget(panel)
-        splitter.addWidget(right)
-        splitter.setSizes([910,470]);splitter.setStretchFactor(0,2)
-        photo_layout.addWidget(splitter,1)
-        page=QHBoxLayout();self.prev=QPushButton('Previous page');self.next=QPushButton('Next page')
-        self.prev.clicked.connect(self.previous_page);self.next.clicked.connect(self.next_page)
-        self.page_label=QLabel('Page 1');page.addWidget(self.prev);page.addWidget(self.next)
-        page.addWidget(self.page_label);page.addStretch()
-        selinfo=QLabel('Tip: Ctrl+A selects all images on this page')
-        selinfo.setObjectName('Subtle');page.addWidget(selinfo)
-        photo_layout.addLayout(page)
+        self.list.itemDoubleClicked.connect(self.show_full_image)
+        self.list.setAccessibleName('Photo grid')
+        left_v.addWidget(self.list, 1)
+        self.empty_label = QLabel('No photographs in this view.\nClick + Add photos to import a local folder.')
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setObjectName('Subtle')
+        self.empty_label.hide()
+        left_v.addWidget(self.empty_label)
+        paging = QHBoxLayout()
+        self.prev = QPushButton('← Previous')
+        self.next = QPushButton('Next →')
+        self.prev.clicked.connect(self.previous_page)
+        self.next.clicked.connect(self.next_page)
+        self.page_label = QLabel('0 of 0')
+        self.page_label.setObjectName('Subtle')
+        paging.addWidget(self.prev)
+        paging.addWidget(self.next)
+        paging.addWidget(self.page_label)
+        paging.addStretch()
+        hint = QLabel('Ctrl+A: select visible page • Double-click: enlarge')
+        hint.setObjectName('Tiny')
+        paging.addWidget(hint)
+        left_v.addLayout(paging)
+        self.splitter.addWidget(left)
 
-        people=QWidget();self.tabs.addTab(people,'People / Face Groups')
-        people_v=QVBoxLayout(people)
-        intro=QLabel('Local face embeddings are stored only in the application database. Groups are suggestions, not verified identities. Double-click a group to browse its photos.')
-        intro.setWordWrap(True);people_v.addWidget(intro)
-        pplbuttons=QHBoxLayout()
-        self.add_action(pplbuttons,'Refresh face groups',self.refresh_groups)
-        self.add_action(pplbuttons,'Rename selected group',self.rename_group)
-        self.add_action(pplbuttons,'Show all library photos',self.clear_filters)
-        pplbuttons.addStretch();people_v.addLayout(pplbuttons)
-        self.groups_table=QTableWidget(0,4)
-        self.groups_table.setHorizontalHeaderLabels(['Group ID','Name / label','Number of photos','Faces'])
+        self.inspector = QScrollArea()
+        self.inspector.setWidgetResizable(True)
+        self.inspector.setMinimumWidth(285)
+        self.inspector.setMaximumWidth(420)
+        panel = QWidget()
+        panel.setObjectName('Inspector')
+        panel_v = QVBoxLayout(panel)
+        panel_v.setContentsMargins(15, 13, 15, 16)
+        panel_v.setSpacing(10)
+        inspector_heading = QHBoxLayout()
+        title = QLabel('PHOTO DETAILS')
+        title.setObjectName('SectionTitle')
+        inspector_heading.addWidget(title)
+        inspector_heading.addStretch()
+        close_inspector = QToolButton()
+        close_inspector.setText('✕')
+        close_inspector.setToolTip('Close photo details')
+        close_inspector.clicked.connect(self.close_inspector)
+        inspector_heading.addWidget(close_inspector)
+        panel_v.addLayout(inspector_heading)
+        self.photo_title = QLabel('Select an image')
+        self.photo_title.setWordWrap(True)
+        panel_v.addWidget(self.photo_title)
+        self.preview = QLabel('Photo preview')
+        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview.setMinimumHeight(210)
+        self.preview.setStyleSheet('background:#EEF2F4; border:1px solid #DEE8EB; border-radius:10px;')
+        panel_v.addWidget(self.preview)
+        self.technical = QLabel('')
+        self.technical.setObjectName('Subtle')
+        self.technical.setWordWrap(True)
+        panel_v.addWidget(self.technical)
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        form.setSpacing(8)
+        self.edits = {}
+        for field, label in [('location', 'Location'), ('activity', 'Activities'), ('attraction', 'Attraction'),
+                             ('source_url', 'Source URL'), ('artist', 'Photographer'),
+                             ('copyright', 'Copyright'), ('license', 'Usage rights')]:
+            edit = QLineEdit()
+            edit.setPlaceholderText(label)
+            self.edits[field] = edit
+            form.addRow(label, edit)
+        self.rights_status = QComboBox()
+        self.rights_status.addItems(['Unknown', 'Verified', 'Permission required'])
+        form.addRow('Rights status', self.rights_status)
+        panel_v.addLayout(form)
+        self.add_action(panel_v, 'Save reviewed metadata', self.save_details, True)
+        self.source_label = QLabel('Original source folder:')
+        self.source_label.setObjectName('Subtle')
+        self.source_label.setWordWrap(True)
+        panel_v.addWidget(self.source_label)
+        panel_v.addStretch()
+        self.inspector.setWidget(panel)
+        self.splitter.addWidget(self.inspector)
+        self.splitter.setSizes([920, 335])
+        self.inspector.hide()  # Photo grid fills the canvas until a photo is selected.
+        photo_layout.addWidget(self.splitter, 1)
+
+        people = QWidget()
+        self.tabs.addTab(people, 'People / Face Groups')
+        people_v = QVBoxLayout(people)
+        people_v.setContentsMargins(0, 0, 0, 0)
+        intro = QLabel('Faces stay on this computer. Groups are suggestions, not verified identities. Double-click a group to browse.')
+        intro.setObjectName('Subtle')
+        intro.setWordWrap(True)
+        people_v.addWidget(intro)
+        person_buttons = QHBoxLayout()
+        self.add_action(person_buttons, 'Refresh face groups', self.refresh_groups)
+        self.add_action(person_buttons, 'Rename selected group', self.rename_group)
+        self.add_action(person_buttons, 'Show all photos', self.clear_filters)
+        person_buttons.addStretch()
+        people_v.addLayout(person_buttons)
+        self.groups_table = QTableWidget(0, 4)
+        self.groups_table.setHorizontalHeaderLabels(['Group ID', 'Name / label', 'Number of photos', 'Faces'])
         self.groups_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.groups_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.groups_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.groups_table.doubleClicked.connect(self.open_group)
-        people_v.addWidget(self.groups_table,1)
+        people_v.addWidget(self.groups_table, 1)
 
-        bottom=QHBoxLayout()
-        self.status=QLabel('Ready. Add a local folder to start indexing photos.');self.status.setObjectName('Subtle')
-        bottom.addWidget(self.status,1)
-        self.busybar=QProgressBar();self.busybar.setMaximumWidth(190);self.busybar.hide()
-        bottom.addWidget(self.busybar);main.addLayout(bottom)
+        footer = QHBoxLayout()
+        self.status = QLabel('Ready. Import a photo folder to get started.')
+        self.status.setObjectName('Subtle')
+        footer.addWidget(self.status, 1)
+        self.ai_notice = QLabel()
+        self.ai_notice.setObjectName('Tiny')
+        self.ai_notice.setMaximumWidth(330)
+        footer.addWidget(self.ai_notice)
+        self.refresh_ai_notice()
+        self.busybar = QProgressBar()
+        self.busybar.setMaximumWidth(170)
+        self.busybar.hide()
+        footer.addWidget(self.busybar)
+        main.addLayout(footer)
+        self.shortcuts = []
+        for key, callback in [('Ctrl+F', self.search.setFocus),
+                              ('Ctrl+I', self.import_folder),
+                              ('Ctrl+E', self.export_selected)]:
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.activated.connect(callback)
+            self.shortcuts.append(shortcut)
+
+    def _build_more_menu(self):
+        def entry(label, callback):
+            action = self.more_menu.addAction(label)
+            action.triggered.connect(callback)
+            self.action_buttons.append(action)
+            return action
+        self.more_menu.addSection('AI RECOGNITION')
+        entry('Refresh AI selected (ignore cache)', self.refresh_ai_selected)
+        entry('Test local AI model', self.test_local_ai)
+        entry('Cloud AI selected (opt-in)', self.cloud_selected)
+        entry('Review AI tag suggestions', self.show_ai_reviews)
+        self.more_menu.addSeparator()
+        self.more_menu.addSection('VISUAL MATCHING')
+        entry('Index selected images', self.index_visual_selection)
+        entry('Index whole library', self.index_visual_matches)
+        entry('Save selected photo as reference', self.save_visual_reference)
+        entry('Match reference examples', self.find_reference_selected)
+        self.more_menu.addSeparator()
+        self.more_menu.addSection('ORGANIZE & QUALITY')
+        entry('Review and move selected photos', self.move_selected)
+        entry('Undo last move batch', self.undo_moves)
+        entry('Scan image quality', self.analyze_quality)
+        entry('Review duplicates', self.show_duplicates)
+        self.more_menu.addSeparator()
+        self.more_menu.addSection('FACES (LOCAL ONLY)')
+        entry('Download face models', self.get_models)
+        entry('Group faces', self.scan_faces)
+
+    def _set_nav_active(self, key):
+        for name, button in self.nav_buttons.items():
+            button.setProperty('active', name == key)
+            button.style().unpolish(button)
+            button.style().polish(button)
+            button.update()
+
+    def navigate(self, key):
+        self._set_nav_active(key)
+        if key == 'people':
+            self.heading_title.setText('People & Face Groups')
+            self.heading_description.setText('Review locally grouped faces; names are optional')
+            self.tabs.setCurrentIndex(1)
+            self.refresh_groups()
+            return
+        self.tabs.setCurrentIndex(0)
+        headings = {
+            'all': ('Photo Library', 'Find, review and organize your Sri Lankan travel photography'),
+            'locations': ('Locations', 'Browse destinations from GPS, metadata and reviewed tags'),
+            'activities': ('Activities', 'Explore safaris, village visits, beaches, trekking and more'),
+            'review': ('Review AI suggestions', 'Check uncertain AI tags before organizing photos'),
+            'exports': ('Export Photos', 'Choose images and export to WebP, JPEG, PNG or TIFF'),
+        }
+        title, description = headings.get(key, headings['all'])
+        self.heading_title.setText(title)
+        self.heading_description.setText(description)
+        self.gallery_title.setText('Photographs' if key != 'all' else 'All photographs')
+        if key in ('locations', 'activities'):
+            self.filter_toggle.setChecked(True)
+            (self.locations if key == 'locations' else self.activities).setFocus()
+        elif key == 'review':
+            self.show_ai_reviews()
+        elif key == 'exports':
+            self.status.setText('Select one or more photographs, then click Export selected.')
+
+    def toggle_filters(self, checked):
+        self.filter_panel.setVisible(bool(checked))
+
+    def toggle_grid_density(self, compact):
+        if compact:
+            self.list.setIconSize(QSize(180, 120))
+            self.list.setGridSize(QSize(205, 208))
+        else:
+            self.list.setIconSize(QSize(230, 146))
+            self.list.setGridSize(QSize(252, 234))
+        self.list.viewport().update()
+
+    def close_inspector(self):
+        self.inspector.hide()
+        self.list.clearSelection()
+        self.current_id = None
+
+    def show_full_image(self, item):
+        row = self.visible_rows.get(item.data(Qt.ItemDataRole.UserRole))
+        if not row: return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(Path(row['path']).name)
+        dialog.resize(1050, 780)
+        layout = QVBoxLayout(dialog)
+        preview = QLabel()
+        preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        with Image.open(row['path']) as source:
+            picture = ImageOps.exif_transpose(source).convert('RGB')
+            picture.thumbnail((1500, 1100), Image.Resampling.LANCZOS)
+            qimage = QImage(picture.tobytes(), picture.width, picture.height,
+                            picture.width * 3, QImage.Format.Format_RGB888).copy()
+        preview.setPixmap(QPixmap.fromImage(qimage).scaled(
+            1000, 720, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.addWidget(preview)
+        close = QPushButton('Close preview')
+        close.clicked.connect(dialog.accept)
+        layout.addWidget(close)
+        dialog.exec()
 
     def task_start(self,fn,done=None):
         if self.task and self.task.isRunning():
@@ -428,35 +678,47 @@ class Window(QMainWindow):
     def load_page(self):
         self.refresh_location_choices()
         with db.connect(self.db_path) as con:
-            rows,total=db.query_photos(con,self.search.text().strip(),self.locations.currentData() or '',
-                self.activities.currentData() or '',self.group_filter,self.offset,PAGE_SIZE)
+            rows, total = db.query_photos(con, self.search.text().strip(),
+                self.locations.currentData() or '', self.activities.currentData() or '',
+                self.group_filter, self.offset, PAGE_SIZE)
         if self.offset and not rows and total:
-            self.offset=max(0,((total-1)//PAGE_SIZE)*PAGE_SIZE)
+            self.offset = max(0, ((total - 1) // PAGE_SIZE) * PAGE_SIZE)
             return self.load_page()
-        self.total=total
-        self.visible_rows={r['id']:dict(r) for r in rows}
+        self.total = total
+        self.visible_rows = {r['id']: dict(r) for r in rows}
+        self.list.blockSignals(True)
         self.list.clear()
         for row in rows:
-            path=Path(row['path'])
+            path = Path(row['path'])
             try:
-                tag_list = json.loads(row['activities'] or '[]')
+                tags = json.loads(row['activities'] or '[]')
             except (ValueError, TypeError):
-                tag_list = []
-            item_label = path.name[:23] + '\n' + (tag_list[0][:25] if tag_list else 'No activity tag')
-            it=QListWidgetItem(item_label)
-            it.setData(Qt.ItemDataRole.UserRole,row['id'])
-            it.setToolTip('\n'.join([str(path),'Location: '+(row['location'] or 'Unknown'),
-                'Activities: '+(', '.join(tag_list) if tag_list else 'Not identified'),
-                'Attraction: '+(row['attraction'] or 'Unknown'),
-                'AI status: '+(row['ai_source'] or 'Not tagged'),'Faces: '+str(row['face_count'])]))
-            self.list.addItem(it)
-        self.current_id=None
+                tags = []
+            item = QListWidgetItem(path.name)
+            item.setData(Qt.ItemDataRole.UserRole, row['id'])
+            item.setData(Qt.ItemDataRole.UserRole + 1, path.name)
+            item.setData(Qt.ItemDataRole.UserRole + 2,
+                row['location'] or row['attraction'] or (tags[0] if tags else 'Unclassified'))
+            item.setData(Qt.ItemDataRole.UserRole + 3, 'AI tagged' if row['ai_source'] and row['ai_source'] != 'Manual' else '')
+            item.setToolTip('\n'.join([str(path),
+                'Location: ' + (row['location'] or 'Unknown'),
+                'Activities: ' + (', '.join(tags) if tags else 'Not identified'),
+                'Attraction: ' + (row['attraction'] or 'Unknown'),
+                'AI status: ' + (row['ai_source'] or 'Not tagged')]))
+            self.list.addItem(item)
+        self.list.blockSignals(False)
+        self.current_id = None
+        self.inspector.hide()
         self.photo_title.setText('Select an image')
-        self.preview.clear();self.preview.setText('Photo preview')
-        self.total_label.setText(f'{total:,} matching photos')
-        self.page_label.setText(f"{self.offset+1 if total else 0}-{min(self.offset+PAGE_SIZE,total)} of {total:,}")
-        self.prev.setEnabled(self.offset>0);self.next.setEnabled(self.offset+PAGE_SIZE<total)
-        QTimer.singleShot(20,lambda:self.render_thumbs(0))
+        self.preview.clear()
+        self.preview.setText('Photo preview')
+        self.total_label.setText(f'{total:,} photos indexed' if not self.search.text().strip() else f'{total:,} matching photos')
+        self.selection_label.setText('Select photos to classify, compare or export')
+        self.page_label.setText(f'{self.offset+1 if total else 0}–{min(self.offset+PAGE_SIZE,total)} of {total:,}')
+        self.prev.setEnabled(self.offset > 0)
+        self.next.setEnabled(self.offset + PAGE_SIZE < total)
+        self.empty_label.setVisible(total == 0)
+        QTimer.singleShot(20, lambda: self.render_thumbs(0))
 
     def render_thumbs(self,index):
         # Throttle thumbnail generation so the UI has a chance to handle events.
@@ -470,17 +732,17 @@ class Window(QMainWindow):
         if index+5<self.list.count():
             QTimer.singleShot(10,lambda:self.render_thumbs(index+5))
 
-    def thumbnail(self,row):
-        source=Path(row['path'])
-        key=hashlib.sha1(f"{source}|{row['mtime']}".encode('utf-8')).hexdigest()
-        thumb=self.thumb_dir/(key+'.jpg')
-        if thumb.exists(): return thumb
-        with Image.open(source) as im:
-            img=ImageOps.exif_transpose(im).convert('RGB')
-            img.thumbnail((180,140),Image.Resampling.LANCZOS)
-            background=Image.new('RGB',(180,140),'#202A38')
-            background.paste(img,((180-img.width)//2,(140-img.height)//2))
-            background.save(thumb,'JPEG',quality=75)
+    def thumbnail(self, row):
+        source = Path(row['path'])
+        key = hashlib.sha1(f"card-v2|{source}|{row['mtime']}".encode('utf-8')).hexdigest()
+        thumb = self.thumb_dir / (key + '.jpg')
+        if thumb.exists():
+            return thumb
+        with Image.open(source) as opened:
+            image = ImageOps.exif_transpose(opened).convert('RGB')
+            # Cropping is thumbnail-only; the original photograph is untouched.
+            image = ImageOps.fit(image, (230, 146), method=Image.Resampling.LANCZOS)
+            image.save(thumb, 'JPEG', quality=83)
         return thumb
 
     def select_photo(self):
@@ -490,6 +752,10 @@ class Window(QMainWindow):
         row=self.visible_rows.get(pid)
         if not row:return
         self.current_id=pid
+        self.inspector.show()
+        self.splitter.setSizes([920, 340])
+        count = len(chosen)
+        self.selection_label.setText(f'{count} selected')
         self.photo_title.setText(Path(row['path']).name)
         try:
             pix=QPixmap(row['path'])
@@ -521,6 +787,7 @@ class Window(QMainWindow):
             db.update_metadata(con,self.current_id,location=values['location'],activity_text=values['activity'],
                 attraction=values['attraction'],source_url=values['source_url'],artist=values['artist'],
                 copyright=values['copyright'],license=values['license'])
+            set_rights(con, self.current_id, self.rights_status.currentText())
         self.status.setText('Reviewed metadata saved. Manual tags are protected from future AI changes.')
         self.load_page()
 
@@ -834,6 +1101,7 @@ class Window(QMainWindow):
         row=index.row()
         self.group_filter=int(self.groups_table.item(row,0).text())
         self.tabs.setCurrentIndex(0)
+        self._set_nav_active('all')
         self.reset_page()
         self.status.setText(f'Browsing photos for face group #{self.group_filter}. Click Clear filters to return to all photos.')
 
@@ -846,6 +1114,7 @@ class Window(QMainWindow):
         self.locations.setCurrentIndex(0)
         self.activities.setCurrentIndex(0)
         self.tabs.setCurrentIndex(0)
+        self._set_nav_active('all')
         self.reset_page()
 
     def previous_page(self):

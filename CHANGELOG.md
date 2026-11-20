@@ -1,3 +1,12 @@
+## 1.0.0-rc4 — Modern native desktop interface
+
+- Implemented persistent light navigation matching the approved gallery concept.
+- Added live search, filter toggle, rich rounded image cards, full-preview dialog and responsive card density.
+- Retained all existing AI/visual-match/face/move/export operations in compact toolbar and organized More menu.
+- Added single-photo metadata inspector and fixed rights status persistence.
+- Added optional Qt offscreen integration tests for Windows CI.
+- Image originals are not modified; tagging is still review-first and the app remains a release candidate.
+
 ## 1.0.0-rc3 — Local visual similarity search and trusted photo references
 
 - Added **Index selected** and **Index whole library** to compute and cache local OpenCLIP image embeddings with SHA-256 and dHash fingerprints.
