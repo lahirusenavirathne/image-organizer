@@ -1,0 +1,22 @@
+name: DreamHost web edition checks
+on:
+  push:
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-php.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-php.yml'
+jobs:
+  php-lint-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP and JavaScript syntax checks
+        run: |
+          php -v
+          find web/public web/private web/bin web/tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check web/public/assets/app.js
+      - name: Unit smoke checks (no database required)
+        run: php web/tests/smoke.php
