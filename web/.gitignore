@@ -1,0 +1,8 @@
+private/config.php
+private/install-token.txt
+private/originals/
+private/thumbnails/
+private/incoming/
+private/tmp/
+private/import.lock
+.DS_Store
