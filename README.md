@@ -1,27 +1,40 @@
-## Web companion — rc6 manual photo transfer
+## Selective two-way folder sync — Windows rc7 / DreamHost Web v0.5
 
-The Windows desktop app can now send selected photographs to the DreamHost web photo manager.
-Open **More → DreamHost Web API → Test web API connection**. Create a *write*
-API token on your **staging** website's `/api-tokens.php` page; paste it once in
-Windows. Choose **Remember** to store it in Windows Credential Manager using
-`keyring`, or leave it unchecked for temporary in-memory use. Re-run
-`INSTALL_WINDOWS.bat` after replacing the source files to install `keyring`.
+**Only local My Drive folders you check can synchronize.** Open **More → DreamHost Web API → Sync selected folders (Windows ↔ Web)**. Check one or
+several local folders. A checked parent covers its descendants, while a checked
+child excludes unselected ancestor and sibling photos; unfiled My Drive root
+photos are also excluded. No all-library, watcher, or automatic background sync
+is available. Each additional batch requires user confirmation.
 
-From the local Photo Library, select up to 20 JPEG/PNG/WebP photos, then choose
-**More → Upload selected photos to web** and confirm. Photos upload to the remote
-My Drive root by default. You may enter an existing remote folder ID instead.
-Use **Resume failed/interrupted web uploads** to retry whole photos after a
-network outage. A lost success response is reconciled with SHA-256 on the
-server so retrying does not create duplicate copies. The server also refuses
-to overwrite a different image that has the same filename in the destination.
-To fix a filename conflict, review it and rename the local *display name*
-before explicitly retrying that photo. No originals are moved or deleted.
+The application creates the chosen folder paths beneath a specified web parent
+(default ID 0, My Drive root) and transfers **up to 20 photos total per click**,
+first from Windows to DreamHost, then web-only photographs back to Windows if
+quota remains. The remote→local leg visits only web directories beneath those
+chosen roots. Newly discovered web subfolders become local virtual subfolders
+inside the selected trees. Downloaded originals reside in the desktop app's
+private managed `web_sync_downloads/` directory, never on top of original sources.
 
-**Not a two-way sync:** It does not download remote files, replicate folder trees,
-reconcile tags, remove local/remote originals, or resume a partial file from
-its byte offset. It is a safe, manually triggered upload bridge intended for
-initial staging tests. Limit 20 files/click, 25 MiB/image; verify usage limits
-on DreamHost. A Bearer token should never be pasted into chat or GitHub.
+Uploads and downloads are **additive**: existing images are not overwritten;
+photo-name collisions are shown for manual review; identical SHA-256 uploads
+are detected and skipped. Completed transfers are checkpointed in local SQLite,
+so **Continue selected-folder sync** advances to new files on subsequent clicks.
+Folder/Photo Trash and deletions, renames, cloud metadata, user permissions and
+conflicting edits **are not synchronized**. Existing same-named remote folders
+are reused, so choose a dedicated web parent if you don't want them mixed.
+
+**Prerequisites:** DreamHost **web v0.5 with API v1** on a staging subdomain,
+a staging database, and a write-scoped API token from `/api-tokens.php`. Windows
+stores a remembered token in Credential Manager using `keyring`. No token is
+written to SQLite or the connection settings. Support is limited to JPEG/PNG/WebP,
+25 MiB per photo, a maximum of 20 transfer attempts per click, and bounded web
+API listing. Very large remote folders require multiple manual scan runs.
+
+**Safety:** There is no download-by-file-ID outside chosen web folders, no delete
+propagation in either direction, and no automatic overwrite. A changed image
+whose name is already occupied on the destination creates a conflict and needs
+manual review. Local folder renaming does not rename the old web path. Keep
+backups of both libraries and test with five disposable copies first. This is a
+candidate release; Windows UI and live DreamHost integration are not yet verified.
 
 ---
 

@@ -6,6 +6,7 @@ Secrets are never written to SQLite, debug logs, or configuration files.
 """
 from __future__ import annotations
 import hashlib
+import hmac
 import json
 import mimetypes
 import re
@@ -141,6 +142,81 @@ class ApiClient:
     def me(self) -> dict:
         return self.request('GET',resource='me')['data']
 
+    def list_folders(self, parent_id: int = 0) -> list[dict]:
+        """Read direct children of a destination; avoids guessing remote IDs."""
+        if parent_id < 0: raise ValueError('Remote parent id must be non-negative')
+        response = self.request('GET', resource='folders', values={
+            'parent_id': parent_id if parent_id else 'root'})
+        children = response.get('data')
+        if not isinstance(children, list):
+            raise SyncError('Web API returned an invalid folder list', 'response')
+        # API v1 pages folders at 500; refuse unsafe ambiguous auto-creation.
+        if len(children) >= 500:
+            raise SyncError('Web destination has 500 or more subfolders; choose a smaller destination', 'folder_limit')
+        return children
+
+    def create_folder(self, name: str, parent_id: int = 0) -> dict:
+        """Add a single remote folder. Never rename or overwrite an existing one."""
+        if parent_id < 0: raise ValueError('Remote parent id must be non-negative')
+        if not isinstance(name, str) or not name.strip() or any(c in name for c in '/\\\r\n'):
+            raise ValueError('Invalid remote folder name')
+        result = self.request('POST',resource='folders',body={
+            'name': name, 'parent_id': parent_id if parent_id else None})
+        folder = result.get('data')
+        if not isinstance(folder, dict) or not isinstance(folder.get('id'),(int,str)):
+            raise SyncError('Web API returned an invalid new folder ID', 'response')
+        return folder
+
+    def list_photos(self, folder_id: int, page: int = 1) -> dict:
+        """One 100-photo API page from a specific remote folder only."""
+        if folder_id <= 0 or page <= 0:
+            raise ValueError('A real remote folder ID and valid page are required')
+        response=self.request('GET',resource='photos',values={
+            'folder_id':folder_id,'page':page,'per_page':100})
+        if not isinstance(response.get('data'),list):
+            raise SyncError('Web API returned an invalid photo listing','response')
+        return response
+
+    def download_photo(self, remote_id: int, destination: Path, expected_sha: str) -> None:
+        """Stream a verified original to a new local file; refuse overwrites."""
+        if remote_id <= 0 or not re.fullmatch(r'[a-f0-9]{64}',expected_sha):
+            raise ValueError('Invalid remote photo ID or checksum')
+        destination=Path(destination)
+        if destination.exists() or destination.is_symlink():
+            raise SyncError('Local filename is already in use; no overwrite','conflict')
+        url=self.endpoint+'?'+urllib.parse.urlencode({'resource':'files','id':remote_id,'variant':'original'})
+        request=urllib.request.Request(url,headers={
+            'Authorization':'Bearer '+self.token,'Accept':'image/jpeg,image/png,image/webp'},method='GET')
+        tmp=destination.with_name(destination.name+'.'+uuid.uuid4().hex+'.partial')
+        digest=hashlib.sha256();length=0
+        try:
+            with self.opener.open(request,timeout=self.timeout) as response:
+                if response.status!=200:
+                    raise SyncError('Web image download failed','http',int(response.status))
+                claimed=int(response.headers.get('Content-Length') or 0)
+                if claimed>MAX_UPLOAD:
+                    raise SyncError('Remote photo exceeds the download limit','too_large')
+                destination.parent.mkdir(parents=True,exist_ok=True)
+                with tmp.open('xb') as target:
+                    while chunk:=response.read(1024*512):
+                        length+=len(chunk)
+                        if length>MAX_UPLOAD:
+                            raise SyncError('Remote photo exceeds 25 MiB','too_large')
+                        digest.update(chunk)
+                        target.write(chunk)
+            if not length or not hmac.compare_digest(digest.hexdigest(),expected_sha):
+                raise SyncError('Downloaded image checksum failed; file discarded','integrity')
+            # Link from a verified temp file; unlike replace(), hardlink will not overwrite.
+            # On Windows same-directory NTFS supports link count and atomic failure on collision.
+            import os
+            os.link(tmp,destination)
+        except urllib.error.HTTPError as exc:
+            raise SyncError('Web original-image download denied or unavailable','http',exc.code) from None
+        except (urllib.error.URLError,TimeoutError,ConnectionError) as exc:
+            raise SyncError('Web image download interrupted; retry selected folders','network') from None
+        finally:
+            tmp.unlink(missing_ok=True)
+
     def preflight(self, name: str, sha256: str, size: int, folder_id: int = 0) -> dict:
         return self.request('POST',resource='sync',action='preflight',body={
             'name': name, 'sha256': sha256, 'file_size': size,
@@ -189,6 +265,20 @@ def migrate(con):
         PRIMARY KEY(photo_id,server_url,folder_id)
     )''')
     con.execute('CREATE INDEX IF NOT EXISTS idx_web_sync_state ON web_sync_jobs(server_url,folder_id,state)')
+    con.execute('''CREATE TABLE IF NOT EXISTS web_sync_downloads (
+        server_url TEXT NOT NULL,
+        remote_photo_id INTEGER NOT NULL,
+        local_photo_id INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(server_url,remote_photo_id)
+    )''')
+    con.execute('''CREATE TABLE IF NOT EXISTS web_sync_scan_pages (
+        server_url TEXT NOT NULL,
+        remote_folder_id INTEGER NOT NULL,
+        next_page INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY(server_url,remote_folder_id)
+    )''')
 
 
 def jobs_pending(con, endpoint: str, folder_id: int, limit: int = 20) -> list[int]:

@@ -1,73 +1,47 @@
-# Guia Lanka Photo Manager — Windows ↔ DreamHost Bridge (Staging)
+# Additive two-way selected-folder sync — Windows rc7 / DreamHost Web v0.5 (staging)
 
-**Windows rc6 / DreamHost Web v0.5 / API v1**
+## Prerequisites
 
-## What it does
+1. Leave the production website unchanged. Install/verify DreamHost web v0.5 with API v1
+   on a *staging* subdomain, separate MySQL database and private photo store.
+2. Back up `%LOCALAPPDATA%\GuiaLankaPhotoManager` and all source photos.
+3. Update the desktop source in `C:\GLPhoto`, run `INSTALL_WINDOWS.bat` if needed
+   for the keyring dependency, then run `START_WINDOWS.bat`.
+4. Create a short-lived **write-scoped** token from the staging app's
+   `/api-tokens.php` page. Never paste a real token into chat or GitHub.
 
-A **manual, one-way desktop-to-web upload bridge**. The Windows app uses a scoped,
-revocable API token to upload selected JPEG/PNG/WebP photographs into a specific
-web folder. Each photo is checked by SHA-256 and filename before transmission;
-retrying an interrupted upload is safe because the web server checks again under
-an advisory lock. A SQLite queue records completed, failed and conflicting photos.
+## Select precisely which folders are eligible
 
-- Files on the PC are never moved or deleted by this feature.
-- Existing web images are never overwritten, permanently deleted or renamed.
-- Same SHA-256 in the destination folder: considered already on the web.
-- Same filename with different bytes: conflict, skipped for human review.
-- Up to **20 photographs per manual batch**, each up to **25 MiB**.
-- A network interruption retries the **whole photograph**. Byte-range resume is
-  not implemented and should not be claimed.
-- API tokens are kept in Windows Credential Manager via `keyring` when you check
-  "Remember". Otherwise the token stays in memory for the app session.
-- No automatic background sync, bidirectional downloads, folder-tree mirroring,
-  metadata reconciliation, cloud AI requests or deletion propagation yet.
+1. In desktop My Drive, import some test folders if needed. Root-level unfiled
+   photos are *not* part of the selective-sync scope.
+2. Open **More → DreamHost Web API → Sync selected folders (Windows ↔ Web)**.
+   Check ONLY the local folders you want to transfer. A checked folder includes
+   its descendants; unselected sibling/ancestor photos are never uploaded.
+3. Enter the staging web app URL and write token. Choose the **remote parent folder
+   ID** where the selected trees will be created (`0` means My Drive root).
+4. Review the confirmation list of selected folders and accept to upload the first
+   up-to-20-transfer batch. Uploads run first; remaining quota can download
+   web-only photographs from those same selected folder trees. No deletions or replacements.
+5. To transfer remaining eligible uploads or web-only photos, choose **Continue selected-folder sync**.
+   The same selection is reused; no unselected folders are considered. You will
+   confirm every additional batch. A separate batch may create additional web
+   subfolders when those paths are needed.
+6. Inspect web folders, photo counts and filenames after each batch. If an unchanged
+   file already transferred, it is skipped. Conflicts must be reviewed manually.
+7. To change the scope, return to **Choose folders and sync to web** and change
+   the checkboxes. The previous scope is not a persistent permission grant to a
+   background process; syncing only occurs on explicit clicks.
 
-## Web staging deployment — keep production untouched
+## Operational limitations
 
-1. Back up your current web database and `web/private` photo files. Use a **separate
-   staging website, database and private photo storage**, not live originals.
-2. Clone the staging GitHub branch or extract the new web ZIP into its own staging
-   directory. Point the staging subdomain web root **only** at `web/public`.
-3. Configure PHP 8.2+, MySQL, GD, fileinfo, ZIP and HTTPS.
-4. Install the web app; then, if needed, run the additive migrations:
-
-   ```sh
-   /usr/local/php84/bin/php web/bin/migrate_drive.php
-   /usr/local/php84/bin/php web/bin/migrate_api.php
-   ```
-
-   Replace `php84` with the version on your DreamHost user account.
-5. Log in as an Editor or Admin and open `/api-tokens.php`. Create a short-lived
-   **write** token. Copy it once into Windows; never paste it into GitHub, chat,
-   screenshots, or public logs. Revoke it in the web interface after testing.
-6. Check `/api/v1/index.php?resource=me` with the token from a trusted local
-   terminal if desired. Public unauthenticated requests must return HTTP 401.
-
-## Windows staging installation
-
-1. Back up `%LOCALAPPDATA%\GuiaLankaPhotoManager` and your photos.
-2. Close the Windows app, replace application source with desktop rc6, then run
-   `INSTALL_WINDOWS.bat` to install the `keyring` package. AI models normally do
-   not require reinstalling. Run `START_WINDOWS.bat`.
-3. In **More → DreamHost Web API → Test web API connection**, enter your *staging*
-   website URL and write token. Enable remembering the token only on your own PC.
-4. Select five **disposable copies** of test photographs. Choose **Upload selected
-   photos to web**, keep folder ID `0` (web root), and confirm.
-5. Verify all five appear in staging My Drive. Run the same selected batch again:
-   the client must recognize already-uploaded SHA-256s without duplicating files.
-6. Simulate a network interruption during one upload; use **Resume
-   failed/interrupted web uploads**. Upload success despite lost response should
-   reconcile through preflight.
-7. Try two different photos with the same filename in the same target folder.
-   The second must be reported as a conflict, with no overwrite. To fix it,
-   rename its *local display name* manually and retry that photo.
-8. Revoke the token on the web and ensure further attempts fail authorization.
-9. Compare private file counts with DB photo counts before and after. Check
-   Viewer role cannot issue write tokens or upload photos.
-
-## Production rollout policy
-
-This release is a source **testing candidate**, not an independently verified
-production deployment. Validate both web PHP/MySQL on DreamHost and the Windows
-PySide6 GUI/Windows Credential Manager before merging changes into `main` or
-replacing `photos.guialankatours.com`. Preserve backups throughout testing.
+- This version can download web-only photos within chosen trees, but does not mirror removals, update cloud metadata,
+  or rename prior web folders after local renames/moves. Downloaded originals are
+  stored under `web_sync_downloads/` in the Windows app data folder, not copied over source files.
+- Same-named destination folders are reused; choose a dedicated web parent to
+  avoid mixing desktop uploads with other users' files.
+- An edited photo using an already occupied filename will generate a conflict,
+  not silently overwrite the web original.
+- Only JPEG/PNG/WebP files up to 25 MiB can transfer; up to 20 transfers per manually
+  confirmed action. Unsupported photos are skipped. Local SQLite retains
+  success/failure checkpoints, not the token or photo content.
+- Live DreamHost/PySide6 testing is required before a production release.

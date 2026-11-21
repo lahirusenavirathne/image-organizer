@@ -5,7 +5,7 @@ import json
 from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Callable
-from . import web_sync
+from . import web_sync, folder_sync
 from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
 from PySide6.QtGui import QIcon, QPixmap, QImage, QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -170,6 +170,59 @@ class SimilarityDialog(QDialog):
         return self.results[row] if 0<=row<len(self.results) else None
 
 
+class FolderSyncSelectionDialog(QDialog):
+    """An explicit list of eligible folders; no all-library sync switch."""
+    def __init__(self, folders: list[dict], checked_ids: list[int], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Choose local folders to sync')
+        self.setMinimumSize(490,480)
+        layout=QVBoxLayout(self)
+        note=QLabel('Only checked folders and their subfolders can transfer in either direction. '
+                    'Checking a parent includes its descendants. Photos in unselected '
+                    'sibling folders or My Drive root will NOT be synced.\n\n'
+                    'Up to 20 uploads/downloads per click. Nothing will be overwritten or deleted.')
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        self.tree=QTreeWidget()
+        self.tree.setHeaderLabels(['Local folders (choose individually)'])
+        self.tree.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        layout.addWidget(self.tree,1)
+        items={}
+        for f in sorted(folders, key=lambda row:(len(row['path']),row['path'])):
+            parent_item=items.get(f['parent_id'])
+            item=QTreeWidgetItem(parent_item if parent_item is not None else self.tree,
+                                 [f['name']])
+            item.setData(0,Qt.ItemDataRole.UserRole,f['id'])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(0,Qt.CheckState.Checked if f['id'] in checked_ids else Qt.CheckState.Unchecked)
+            items[f['id']]=item
+        self.tree.expandToDepth(1)
+        self.folder_items=list(items.values())
+        self.count_label=QLabel('Select one or more folders to continue')
+        self.count_label.setObjectName('Subtle')
+        layout.addWidget(self.count_label)
+        self.tree.itemChanged.connect(self.update_count)
+        self.update_count()
+        buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText('Use selected folders')
+        buttons.accepted.connect(self.validate_selection)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def selected_ids(self) -> list[int]:
+        return [int(item.data(0,Qt.ItemDataRole.UserRole)) for item in self.folder_items
+                if item.checkState(0)==Qt.CheckState.Checked]
+
+    def update_count(self, *args):
+        self.count_label.setText(f'{len(self.selected_ids())} selected — no other folders will sync')
+
+    def validate_selection(self):
+        if not self.selected_ids():
+            QMessageBox.warning(self,'Choose folders','Select at least one local folder. The full library cannot be synced from this action.')
+            return
+        self.accept()
+
+
 class WebSyncDialog(QDialog):
     """Explicit device connection; a token never enters the photo database."""
     def __init__(self, endpoint='', token='', folder_id=0, parent=None):
@@ -177,8 +230,8 @@ class WebSyncDialog(QDialog):
         self.setWindowTitle('Connect to Guia Lanka Web Photo Manager')
         self.setMinimumWidth(540)
         layout=QVBoxLayout(self)
-        lead=QLabel('Manual one-way transfer: Windows → DreamHost.\n'
-                    'No remote deletions, replacement, or automatic background synchronization.')
+        lead=QLabel('Manual selected-folder transfer: Windows ↔ DreamHost.\n'
+                    'No deletions, overwrites, or background synchronization in either direction.')
         lead.setWordWrap(True)
         layout.addWidget(lead)
         form=QFormLayout()
@@ -201,11 +254,11 @@ class WebSyncDialog(QDialog):
         self.folder=QSpinBox()
         self.folder.setRange(0,2147483647)
         self.folder.setValue(folder_id)
-        self.folder.setToolTip('0 = the root My Drive folder; numeric IDs refer to existing web folders')
-        form.addRow('Web folder ID (0 = root)',self.folder)
+        self.folder.setToolTip('Web base folder for the selected desktop folder trees; 0 = My Drive root')
+        form.addRow('Web destination parent ID',self.folder)
         layout.addLayout(form)
         explanation=QLabel('Create a read/write token in Web → Account → API tokens. '
-                           'Each click sends at most 20 selected photos. Interrupted batches '
+                           'Only selected local folder trees sync in both directions, in batches of 20 files. Interrupted batches '
                            'can be resumed later, one whole photograph at a time. '
                            'If a different photo uses the same filename, the app skips it for review.')
         explanation.setWordWrap(True)
@@ -684,10 +737,10 @@ class Window(QMainWindow):
         entry('Remove trashed folder from catalog', self.purge_drive_folder)
         entry('Save untouched originals to folder', self.download_originals)
         self.more_menu.addSeparator()
-        self.more_menu.addSection('DREAMHOST WEB API — MANUAL TRANSFER')
+        self.more_menu.addSection('DREAMHOST WEB API — SELECTED FOLDERS')
         entry('Test web API connection', self.test_web_connection)
-        entry('Upload selected photos to web (max 20)', self.sync_web_selected)
-        entry('Resume failed/interrupted web uploads', self.resume_web_uploads)
+        entry('Sync selected folders (Windows ↔ Web)', self.sync_web_selected_folders)
+        entry('Continue selected-folder sync', self.resume_selected_folder_sync)
         entry('Forget stored web API token', self.forget_web_token)
         self.more_menu.addSeparator()
         self.more_menu.addSection('ADVANCED FILE OPERATIONS')
@@ -978,9 +1031,11 @@ class Window(QMainWindow):
         try:
             data=json.loads(self._web_settings_path().read_text(encoding='utf-8'))
             return {'endpoint':str(data.get('endpoint','https://photos.guialankatours.com')),
-                    'folder_id':max(0,int(data.get('folder_id',0)))}
+                    'folder_id':max(0,int(data.get('folder_id',0))),
+                    'selected_folder_ids':[int(i) for i in data.get('selected_folder_ids',[])
+                                           if type(i) is int and i>0][:100]}
         except (OSError,ValueError,TypeError):
-            return {'endpoint':'https://photos.guialankatours.com','folder_id':0}
+            return {'endpoint':'https://photos.guialankatours.com','folder_id':0,'selected_folder_ids':[]}
 
     def _web_client_settings(self):
         settings=self._web_settings()
@@ -991,7 +1046,8 @@ class Window(QMainWindow):
         token=web_sync.validate_token(dialog.token.text())
         target=int(dialog.folder.value())
         # Config holds no secrets. Credentials are stored only on explicit consent.
-        config=json.dumps({'endpoint':endpoint,'folder_id':target},indent=2)
+        config=json.dumps({'endpoint':endpoint,'folder_id':target,
+                           'selected_folder_ids':settings.get('selected_folder_ids',[])},indent=2)
         path=self._web_settings_path();temp=path.with_suffix('.tmp')
         temp.write_text(config,encoding='utf-8');temp.replace(path)
         if dialog.remember.isChecked():
@@ -1012,43 +1068,85 @@ class Window(QMainWindow):
                 'This confirms API access only; no photos were transferred.')
         self.task_start(lambda progress:web_sync.ApiClient(endpoint,token).me(),finished)
 
-    def sync_web_selected(self):
-        ids=self.selected_ids()
-        if not ids:return
-        if len(ids)>20:
-            QMessageBox.warning(self,'Batch limit','Select at most 20 photographs at a time on DreamHost shared hosting.')
+    def sync_web_selected_folders(self):
+        all_local=folder_sync.available_folders(self.db_path)
+        if not all_local:
+            QMessageBox.information(self,'No folders',
+                'Import a photo folder first, or create folders in My Drive. Root-level photos are not included.')
             return
-        settings=self._web_client_settings()
-        if settings is None:return
-        endpoint,token,folder_id=settings
-        if QMessageBox.question(self,'Upload selected photographs',
-                f'Upload up to {len(ids)} photographs to {web_sync.host_origin(endpoint)}?\n'
-                'The server checks SHA-256 hashes and filenames first. '
-                'Local originals will not be moved or deleted.\n\n'
-                'A manual confirmation is required for each batch.')!=QMessageBox.StandardButton.Yes:
+        settings=self._web_settings()
+        stored=settings['selected_folder_ids']
+        dialog=FolderSyncSelectionDialog(all_local,stored,self)
+        if dialog.exec()!=QDialog.DialogCode.Accepted:return
+        chosen=dialog.selected_ids()
+        try:
+            plan=folder_sync.folder_selection(self.db_path,chosen)
+        except ValueError as exc:
+            QMessageBox.warning(self,'Selected folders',str(exc));return
+        connection=self._web_client_settings()
+        if connection is None:return
+        endpoint,token,base_id=connection
+        root_names=['/'.join(f['path']) for f in plan['roots']]
+        if QMessageBox.question(self,'Confirm selected-folder sync',
+                'Sync ONLY these local folders (including their descendants):\n\n'
+                +'\n'.join('• '+name for name in root_names[:12])
+                +(f'\n...and {len(root_names)-12} more' if len(root_names)>12 else '')
+                +f'\n\n{plan["photo_count"]} eligible photos. Up to 20 per run.\n'
+                +'Unselected folders and root-level photos are excluded.\n'
+                +'Existing files on either side will never be overwritten or deleted. Continue?') \
+                !=QMessageBox.StandardButton.Yes:return
+        saved=self._web_settings()
+        saved['selected_folder_ids']=chosen
+        self._save_web_settings(saved)
+        self._start_folder_sync(endpoint,token,base_id,chosen)
+
+    def _save_web_settings(self,values):
+        # Server endpoint, base destination and checked folder IDs are not secrets.
+        path=self._web_settings_path();temporary=path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(values,indent=2),encoding='utf-8')
+        temporary.replace(path)
+
+    def resume_selected_folder_sync(self):
+        settings=self._web_settings()
+        ids=settings.get('selected_folder_ids',[])
+        if not ids:
+            QMessageBox.information(self,'No selected folders',
+                'Use “Choose folders and sync to web” first. No folders are synced by default.')
             return
-        self._start_web_sync(endpoint,token,folder_id,ids)
+        try:plan=folder_sync.folder_selection(self.db_path,ids)
+        except ValueError as exc:
+            QMessageBox.warning(self,'Review selected folders',str(exc));return
+        connection=self._web_client_settings()
+        if connection is None:return
+        endpoint,token,base_id=connection
+        if QMessageBox.question(self,'Continue selected-folder sync',
+                f'Continue syncing ONLY the {len(plan["roots"])} previously selected folders?\n'
+                'Up to 20 transfers in this batch. No deletions or overwrites.')!=QMessageBox.StandardButton.Yes:
+            return
+        self._start_folder_sync(endpoint,token,base_id,ids)
 
-    def resume_web_uploads(self):
-        settings=self._web_client_settings()
-        if settings is None:return
-        endpoint,token,folder_id=settings
-        self._start_web_sync(endpoint,token,folder_id,None)
-
-    def _start_web_sync(self,endpoint,token,folder_id,ids):
+    def _start_folder_sync(self,endpoint,token,base_id,selected_folder_ids):
         def work(progress):
             client=web_sync.ApiClient(endpoint,token)
-            me=client.me()
-            if me.get('scope')!='write' or me.get('role') not in ('editor','admin'):
-                raise web_sync.SyncError('You need a write-scoped token belonging to an Editor or Admin.','forbidden')
-            return web_sync.upload_batch(self.db_path,client,selected_ids=ids,folder_id=folder_id,progress=progress)
+            return folder_sync.sync_selected_folder_trees(self.db_path,client,
+                selected_ids=selected_folder_ids,remote_parent_id=base_id,progress=progress)
         def finish(result):
-            message=('Uploaded: {uploaded}\nAlready on web: {already_on_web}\n'
-                     'Filename conflicts: {conflicts}\nFailed: {failed}\nSkipped: {skipped}').format(**result)
-            if result['examples']:message+='\n\n'+ '\n'.join(result['examples'])
-            message+='\n\nOnly local copies are retained; no cloud files were deleted or overwritten.'
-            QMessageBox.information(self,'Web transfer completed',message)
-            self.status.setText('Web transfer finished — '+str(result['uploaded'])+' uploaded')
+            message=('Selected folder roots: {selected_folders}\n'
+                     'Eligible photos: {in_scope_photos}\n'
+                     'Uploaded in this batch: {uploaded}\nAlready on web: {already_on_web}\n'
+                     'Previously uploaded (unchanged): {previously_completed}\n'
+                     'Previously reported conflicts: {previous_conflicts}\n'
+                     'Filename conflicts: {conflicts}\nFailed uploads: {failed}\n'
+                     'Downloaded from web: {downloaded}\n'
+                     'Web download conflicts: {download_conflicts}\n'
+                     'Failed downloads: {download_failed}\n'
+                     'New web folders: {remote_folders_created}').format(**result)
+            if result['more_may_remain']:
+                message+='\n\nMore selected-folder photos may remain. Use “Continue selected-folder sync” again.'
+            if result['examples']:message+='\n\n'+'\n'.join(result['examples'])
+            message+='\n\nNo existing local or web originals were replaced or deleted.'
+            QMessageBox.information(self,'Selected-folder sync completed',message)
+            self.status.setText('Selected-folder sync: '+str(result['uploaded'])+' uploaded')
         self.task_start(work,finish)
 
     def forget_web_token(self):

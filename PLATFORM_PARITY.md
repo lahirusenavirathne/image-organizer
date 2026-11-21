@@ -1,29 +1,43 @@
 # Desktop and Web Companion Release Policy
 
-**Desktop:** v1.0.0-rc6 (staging)  
-**Web:** v0.5.0 (staging; includes API v1 plus safe desktop transfer preflight)
+**Desktop:** v1.0.0-rc7 (selected-folder additive two-way sync, staging)  
+**Web:** v0.5.0 (unchanged, staging; API v1)
 
-## Shared workflows
+## Selected-folder synchronization
 
-- Both apps support folders, file rename, move, copy, recoverable Trash and original-file downloads.
-- Windows keeps local photographs and SQLite; DreamHost stores a separate private photo library in MySQL.
-- New: Windows can explicitly upload up to 20 selected images per batch using a short-lived write API token.
-- Existing web content is checked by SHA-256 per destination folder; duplicate images are skipped and name collisions are reported, never overwritten.
-- A local SQLite queue records completed, failed, uploading and conflicting photos. 'Resume' safely retries whole photos.
-- API tokens can be stored only in Windows Credential Manager or held in memory for the current app session.
-- Upload and resume actions are **manual**, and never delete or change remote originals or send photos to OpenAI.
+The Windows desktop client now syncs **only user-selected local virtual folders**,
+using upload and original-file download operations from DreamHost API v1. Parent selections include descendants;
+choosing a child alone does not include photos from the ancestor or siblings.
+Desktop root photos with no local folder are excluded. The user confirms each
+20-photo batch. Checked folder IDs and remote parent folder ID are saved without secrets.
+No full-library option, automatic background transfer, or deletions are exposed.
+Web-only photos within selected trees are downloaded to app-managed local storage,
+without overwriting external source files. Selected web child folders can be
+re-created as local virtual folders beneath the selected roots.
+Remote folder hierarchy is recreated beneath the chosen destination; only the
+necessary ancestors and selected roots are created for a manual batch. Existing
+folders of the same name are reused. Existing remote photos cannot be overwritten:
+byte-identical SHA-256 files are skipped; same-name/different-bytes files are
+conflicts. Previously transferred unchanged local files are skipped on subsequent
+runs. Interrupted files retry as whole-file transfers, not byte ranges.
 
-## Not yet synchronized
+## Limits and platform parity
 
-- Remote-to-desktop downloads, background jobs, byte-range resume of one large file,
-  automatic folder-tree mirroring, edit/metadata reconciliation, automatic local/cloud deletions,
-  exact file-version history, and face-recognition integration are NOT implemented.
-- The existing web/API file limit remains 25 MiB and JPEG/PNG/WebP only.
-- User account login is separate from API token authentication.
+- Windows stores local files and SQLite; DreamHost uses separate private files and MySQL.
+- Windows has local AI/OpenCLIP and face grouping; the PHP web app does not.
+- Both support folders, rename/move/copy, recoverable Trash, original downloads,
+  exports and metadata editing, but **there is no bidirectional data model**.
+- Folder renames or moves do not propagate deletion or rename to old remote paths.
+- Metadata, tags, photo revisions, and permissions do
+  not synchronize in this phase. No continuous sync watchers or scheduled jobs.
+- Uploaded content is restricted to JPEG/PNG/WebP, max 25 MiB per image.
+- Web API authentication requires an Admin/Editor write-scoped token; this token
+  can be revoked at any time.
 
 ## Release checks
 
-- Run desktop regression and API/PHP tests, then test with 5 disposable images and a separate DreamHost staging database.
-- Verify timeout recovery, duplicate upload prevention, filename conflicts, expired/revoked tokens,
-  and original-photo preservation before merging to `main`.
-- Back up the live web DB, private file directory, and desktop SQLite database before any upgrade.
+Use a separate DreamHost staging subdomain, DB and file store. Back up desktop
+SQLite and web database/private files, then test selected vs unselected folders,
+parent/child scope, 20-photo continuation, duplicate/conflict safety, network
+interruption, and token revocation. Do not merge to production before real
+Windows/PySide6 and DreamHost integration verification.

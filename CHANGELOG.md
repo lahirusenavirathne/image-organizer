@@ -1,3 +1,13 @@
+# v1.0.0-rc7 — Selected-folder web synchronization (Windows)
+
+- Added explicit multi-folder checkbox picker; the user chooses which local My Drive folders may transfer in both directions.
+- Parent selections include descendants; child-only selections exclude unselected ancestors/siblings and unfiled root photos.
+- Creates matching web folder paths beneath the configured remote destination (using existing API v1 folder endpoints).
+- 20-transfer manual batches (upload first, then download) with an explicit continue action; skips already transferred unchanged files and retries failed photos.
+- Downloads web-only photos to managed local storage and never modifies existing original source files, remote originals, or permissions; no background scheduling, delete propagation, or metadata overwrites.
+- Preserves write-scoped tokens in Windows Credential Manager; no API token in the photo database or settings file.
+- Added local tests for selective scope, nested folders, overlapping selections, Trash, paging, and safe reruns.
+
 # v1.0.0-rc6 — DreamHost Web companion (manual upload)
 
 - Added HTTPS API v1 connection, scoped Bearer token with Windows Credential Manager storage (optional).
