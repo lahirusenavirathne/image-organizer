@@ -20,3 +20,28 @@
 .account-actions button{white-space:nowrap}.invite-link-box{padding:14px;border:1px solid #b6d6bf;border-radius:12px;background:#eaf6ee;display:grid;gap:10px}.invite-link-box label{font-size:12px;font-weight:700}
 :is(input,select):user-invalid{border-color:#ba332e;background:#fff4f2}
 @media(max-width:720px){.account-form{grid-template-columns:1fr}.account-item{display:block}.account-actions{margin-top:12px}}
+
+/* v0.3 — Drive-style file management. Intrinsic layout, accessible controls, no external assets. */
+.breadcrumbs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 20px;font-size:13px;color:#647c6c;min-height:22px}
+.breadcrumbs button{border:0;background:transparent;color:var(--green);padding:5px 3px;border-radius:5px;font-weight:650}
+.breadcrumbs button:hover{text-decoration:underline}
+.group-heading{font-size:13px;font-weight:750;color:#556c5e;margin-bottom:12px}
+.folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-bottom:24px}
+.folder-card{background:#fff;border:1px solid var(--line);border-radius:13px;min-width:0;padding:12px;box-shadow:var(--shadow)}
+.folder-open{width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:transparent;border:0;color:var(--ink);font-weight:750;padding:9px 6px;min-width:0}
+.folder-open:hover{color:var(--green)}.folder-open:disabled{opacity:1;cursor:default;color:#647267}
+.folder-symbol{font-size:28px;line-height:1}.folder-name{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.folder-controls{display:flex;gap:5px;flex-wrap:wrap;padding:6px 0 0}.mini-action{border:1px solid #e5e9e5;border-radius:7px;background:#f8faf8;color:#4f6756;font-size:11px;padding:7px 9px;font-weight:650}
+.mini-action:hover{border-color:#a3c6b2}.mini-action.danger,.danger-outline{color:#9d4135}
+.sort-label{display:flex;align-items:center;gap:7px;color:#60786a;font-size:12px}.sort-label select{border:1px solid var(--line);border-radius:7px;padding:8px;background:white;color:var(--ink)}
+.file-actions{display:flex;flex-wrap:wrap;gap:8px}.manager-form{padding:20px}.manager-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px}
+.drop-zone{position:fixed;inset:10px;display:grid;place-items:center;border:4px dashed #62a97e;border-radius:24px;background:#e3f4e5f2;color:#275c42;font-size:22px;font-weight:800;z-index:40;pointer-events:none;text-align:center;padding:25px}
+.gallery.list-mode{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}.gallery.list-mode .photo-card{display:grid;grid-template-columns:minmax(85px,124px) minmax(0,1fr);align-items:center;min-height:88px}
+.gallery.list-mode .photo-open{height:88px}.gallery.list-mode .photo-open img{width:100%;height:88px;aspect-ratio:auto;object-fit:cover}
+.gallery.list-mode .photo-meta{padding:10px 16px}.gallery.list-mode .photo-check{top:8px;left:8px}
+.gallery.list-mode .photo-card:hover{transform:none}
+:is(input,select):user-invalid{border-color:#b9342e;background:#fff4f2}
+@media(max-width:900px){.folder-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}.toolbar{align-items:flex-start}.toolbar-right{gap:5px}.sort-label{order:3}}
+@media(max-width:640px){.folder-grid{grid-template-columns:1fr 1fr;gap:9px}.folder-card{padding:7px}.folder-controls{gap:4px}.mini-action{padding:6px 8px}.topbar{flex-wrap:wrap}.topbar #new-folder{font-size:11px}.gallery.list-mode .photo-card{grid-template-columns:95px minmax(0,1fr)}.sort-label{order:initial}}
+
+.trashed-photo{height:158px;display:grid;place-items:center;font-size:40px;background:#f2f4f1;color:#85958a}.gallery.list-mode .trashed-photo{height:88px;font-size:28px}

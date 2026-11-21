@@ -24,3 +24,12 @@
 - Added PHP/JS lint checks and no-database smoke tests.
 
 Not included: real face grouping, arbitrary-angle visual landmark matching, offline OpenCLIP inference, and direct Windows SQLite migration. Those capabilities require separate services or local processing.
+
+## web-0.3.0 — Drive-style file manager
+
+- Nested folders, breadcrumbs, rename, copy and move for photographs, bulk operations, list/grid sorting and browser folder uploads.
+- Trash with individual and whole-folder restoration and explicitly confirmed administrator-only permanent deletion.
+- Small original-photo/folder ZIP download, retaining rights and source manifest metadata.
+- Private-originals protection: trashed photos are no longer accessible by image ID, older gallery API or export routes.
+- Automated additive schema migration with a filesystem lock, plus CLI migration command.
+- Existing login, roles, sessions, photo metadata, SFTP import and cloud tagging preserved.

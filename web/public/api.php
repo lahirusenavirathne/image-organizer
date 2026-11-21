@@ -1,15 +1,16 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__).'/private/images.php';
+require_once dirname(__DIR__).'/private/drive.php';
 try{
     if(!installed())respond(['error'=>'Application not installed'],503);
     require_login();
     $action=(string)($_GET['action']??$_POST['action']??'list');
-    $con=pdo();
+    $con=pdo();drive_migrate($con);
     if($_SERVER['REQUEST_METHOD']==='GET') {
         if($action==='list'){
             $page=max(1,min(999999,(int)($_GET['page']??1)));$size=48;
-            $wheres=[];$params=[];
+            $wheres=['deleted_at IS NULL'];$params=[];
             $q=clean_text($_GET['q']??'',120);
             if($q!==''){
                 $like='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$q).'%';
@@ -32,8 +33,8 @@ try{
             respond(['photos'=>$photos,'page'=>$page,'pages'=>max(1,(int)ceil($total/$size)),'total'=>$total,'locations'=>$locs]);
         }
         if($action==='similar'){
-            $id=int_id($_GET['id']??null);$st=$con->prepare('SELECT * FROM photos WHERE id=?');$st->execute([$id]);$ref=$st->fetch();if(!$ref)respond(['error'=>'Photo not found'],404);
-            $rows=$con->query('SELECT id,sha256,dhash,color_sig,original_name,location,attraction FROM photos ORDER BY id DESC LIMIT 25000')->fetchAll();
+            $id=int_id($_GET['id']??null);$st=$con->prepare('SELECT * FROM photos WHERE id=? AND deleted_at IS NULL');$st->execute([$id]);$ref=$st->fetch();if(!$ref)respond(['error'=>'Photo not found'],404);
+            $rows=$con->query('SELECT id,sha256,dhash,color_sig,original_name,location,attraction FROM photos WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 25000')->fetchAll();
             $scores=[];foreach($rows as $row){
                 if((int)$row['id']===$id)continue;
                 $exact=hash_equals($ref['sha256'],$row['sha256']);
@@ -50,7 +51,10 @@ try{
         require_login('editor');
         $file=$_FILES['photo']??null;
         if(!$file||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file($file['tmp_name']??''))throw new RuntimeException('Upload failed. Check PHP upload_max_filesize and post_max_size on DreamHost.');
-        $record=ingest_image($file['tmp_name'],(string)$file['name'],'Browser upload',true);respond(['success'=>true,'photo'=>$record]);
+        $folder=drive_upload_destination($con,drive_id_or_root($_POST['folder']??null),(string)($_POST['relative_path']??''),require_login('editor'));
+        $record=ingest_image($file['tmp_name'],(string)$file['name'],'Browser upload',true);
+        $con->prepare('UPDATE photos SET folder_id=? WHERE id=?')->execute([$folder,$record['id']]);
+        respond(['success'=>true,'photo'=>$record]);
     }
     if($action==='import_inbox'){
         require_login('admin');
@@ -75,7 +79,7 @@ try{
         $data=[];foreach($fields as $key=>$max)$data[$key]=clean_text($_POST[$key]??'',$max);
         if($data['source_url']!==''&&!filter_var($data['source_url'],FILTER_VALIDATE_URL))throw new RuntimeException('Enter a valid source URL');
         $rights=(string)($_POST['rights_status']??'Unknown');if(!in_array($rights,['Unknown','Verified','Permission required'],true))throw new RuntimeException('Invalid rights status');
-        $st=$con->prepare("UPDATE photos SET location=?,attraction=?,activities=?,source_folder=?,source_url=?,photographer=?,copyright_text=?,license=?,rights_status=?,ai_status='reviewed' WHERE id=?");
+        $st=$con->prepare("UPDATE photos SET location=?,attraction=?,activities=?,source_folder=?,source_url=?,photographer=?,copyright_text=?,license=?,rights_status=?,ai_status='reviewed' WHERE id=? AND deleted_at IS NULL");
         $st->execute([...array_values($data),$rights,$id]);respond(['success'=>true]);
     }
     if($action==='cloud_ai'){
@@ -84,7 +88,7 @@ try{
         if(($_POST['confirm']??'')!=='yes')throw new RuntimeException('Explicit consent required before image upload to OpenAI');
         $key=(string)(config()['openai_api_key']??'');if($key==='')throw new RuntimeException('Cloud AI not configured. Add your API key to private/config.php on the server.');
         if(!function_exists('curl_init'))throw new RuntimeException('PHP cURL extension is required for cloud tagging');
-        $st=$con->prepare('SELECT * FROM photos WHERE id=?');$st->execute([$id]);$row=$st->fetch();if(!$row)throw new RuntimeException('Photo not found');
+        $st=$con->prepare('SELECT * FROM photos WHERE id=? AND deleted_at IS NULL');$st->execute([$id]);$row=$st->fetch();if(!$row)throw new RuntimeException('Photo not found');
         if($row['ai_status']==='reviewed')throw new RuntimeException('Manually reviewed metadata is protected. Select an unreviewed photo.');
         // Generate a resized temporary image; never upload EXIF or the original file.
         [$temp]=make_export($row,768,768,'jpg');
@@ -99,7 +103,7 @@ try{
         if(!is_array($data))throw new RuntimeException('AI response could not be interpreted');
         $activity=is_array($data['activities']??null)?implode(', ',array_slice(array_filter($data['activities'],'is_string'),0,4)):'';
         $location=clean_text($data['location']??'',150);$attraction=clean_text($data['attraction']??'',190);$note=clean_text($data['note']??'',400);
-        $st=$con->prepare("UPDATE photos SET activities=?,attraction=?,location=IF(location='',?,location),ai_status='suggested',ai_note=? WHERE id=? AND ai_status<>'reviewed'");$st->execute([clean_text($activity,500),$attraction,$location,$note,$id]);
+        $st=$con->prepare("UPDATE photos SET activities=?,attraction=?,location=IF(location='',?,location),ai_status='suggested',ai_note=? WHERE id=? AND deleted_at IS NULL AND ai_status<>'reviewed'");$st->execute([clean_text($activity,500),$attraction,$location,$note,$id]);
         respond(['success'=>true,'result'=>['activities'=>$activity,'attraction'=>$attraction,'location'=>$location,'note'=>$note]]);
     }
     respond(['error'=>'Unknown action'],404);

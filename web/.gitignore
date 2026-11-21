@@ -9,3 +9,7 @@ private/import.lock
 private/auth-migrate.lock
 private/auth-v2-ready
 private/auth-v2-ready.tmp
+
+private/drive-v3-ready
+private/drive-v3-ready.tmp
+private/drive-v3-migrate.lock

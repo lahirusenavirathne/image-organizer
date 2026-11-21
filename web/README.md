@@ -1,3 +1,7 @@
+# Web v0.3 — Drive-style photo file manager
+
+**Next upgrade after web v0.2 authentication:** folder hierarchy, rename/move/copy files, browser folder uploads, grid/list view, sorting, Trash/restore, and small original-photo ZIP downloads. Existing photo originals and MySQL records are preserved by an additive schema migration. **Back up before updating and test on staging.** See [FILE_MANAGER_DEPLOY.md](FILE_MANAGER_DEPLOY.md) for deployment steps, role permissions, limits and the complete pilot checklist. This remains a photo manager, not an unrestricted file-storage service.
+
 # Guia Lanka Photo Manager — DreamHost Web Edition (MVP 0.2 — Authentication)
 
 A **private, responsive photo-library web app** designed for existing DreamHost **Shared Unlimited** plans. This implementation is separate from the Windows desktop program and does not replace it. The desktop code remains in the repository root; this web edition lives in `web/`.

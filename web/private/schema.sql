@@ -54,3 +54,17 @@ CREATE TABLE IF NOT EXISTS photos (
   KEY idx_created (created_at),
   KEY idx_sha (sha256)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- File manager v0.3. Existing installs use drive_migrate() instead.
+CREATE TABLE IF NOT EXISTS folders (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(190) NOT NULL,
+  parent_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NULL,
+  deleted_at DATETIME NULL,
+  trash_batch CHAR(32) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_folder_parent (parent_id),
+  KEY idx_folder_deleted (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

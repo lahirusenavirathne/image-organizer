@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__).'/private/images.php';
+require_once dirname(__DIR__).'/private/drive.php';
 try{
-    require_login('editor');method_post();verify_csrf();check_gd();
+    require_login('editor');drive_migrate(pdo());method_post();verify_csrf();check_gd();
     if(!class_exists('ZipArchive'))throw new RuntimeException('PHP ZipArchive extension is required');
     $raw=explode(',',(string)($_POST['ids']??''));
     if(count($raw)<1||count($raw)>BATCH_SIZE)throw new RuntimeException('Select between 1 and '.BATCH_SIZE.' photographs per export');
@@ -15,7 +16,7 @@ try{
     $csv=fopen('php://temp','w+');fputcsv($csv,['File','Original filename','Location','Activities','Attraction','Photographer','Copyright','License','Rights status','Source folder','Source URL']);
     $tmp=[];
     try{
-        $stmt=pdo()->prepare('SELECT * FROM photos WHERE id=?');$index=1;
+        $stmt=pdo()->prepare('SELECT * FROM photos WHERE id=? AND deleted_at IS NULL');$index=1;
         foreach($ids as $id){
             $stmt->execute([$id]);$photo=$stmt->fetch();if(!$photo)continue;
             [$file,$ew,$eh]=make_export($photo,$w,$h,$format);$tmp[]=$file;
