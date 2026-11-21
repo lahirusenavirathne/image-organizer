@@ -1,0 +1,40 @@
+name: DreamHost web authentication integration checks
+on:
+  push:
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-auth-mysql.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-auth-mysql.yml'
+jobs:
+  php-mysql-auth:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: glphoto_auth_test
+          MYSQL_USER: glphoto_ci
+          MYSQL_PASSWORD: local-only-ci-pass
+          MYSQL_ROOT_PASSWORD: temporary-root-ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -ptemporary-root-ci"
+          --health-interval=10s --health-timeout=5s --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP MySQL extension
+        run: sudo apt-get update -qq && sudo apt-get install -y php-mysql
+      - name: Syntax and standalone tests
+        run: |
+          find web/public web/private web/bin web/tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php web/tests/auth_unit.php
+      - name: MySQL invitation, session and migration tests
+        env:
+          GLPM_TEST_MYSQL_DSN: mysql:host=127.0.0.1;port=3306;dbname=glphoto_auth_test;charset=utf8mb4
+          GLPM_TEST_MYSQL_USER: glphoto_ci
+          GLPM_TEST_MYSQL_PASS: local-only-ci-pass
+        run: php web/tests/auth_mysql.php

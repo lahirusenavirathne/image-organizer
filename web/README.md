@@ -1,14 +1,68 @@
-# Guia Lanka Photo Manager — DreamHost Web Edition (MVP 0.1)
+# Guia Lanka Photo Manager — DreamHost Web Edition (MVP 0.2 — Authentication)
 
 A **private, responsive photo-library web app** designed for existing DreamHost **Shared Unlimited** plans. This implementation is separate from the Windows desktop program and does not replace it. The desktop code remains in the repository root; this web edition lives in `web/`.
 
 **Technology:** PHP 8.2+ (FastCGI), MySQL (PDO), GD, PHP ZIP and cURL (for optional OpenAI). No Node server, Python model server, Composer, database triggers or background daemon required.
 
+## Authentication and team access (v0.2)
+
+The web app now has an **invitation-only** login system for multiple teammates. There is
+no public self-registration, no default passwords and no reliance on outgoing email
+from DreamHost. The administrator creates one-time invitation links and shares them
+privately. Users activate their accounts by choosing their own password.
+
+| Role | Library and original previews | Upload, edit and export | SFTP inbox import | Team accounts |
+| --- | --- | --- | --- | --- |
+| Admin | Yes | Yes | Yes | Yes |
+| Editor | Yes | Yes | No | No |
+| Viewer | Yes (including full-size view) | No | No | No |
+
+**Included security controls:** hashed passwords (PHP `password_hash`), 14–72-byte
+passwords, session fixation prevention and session regeneration, `Secure`/`HttpOnly`/
+`SameSite=Lax` cookies over HTTPS, CSRF tokens on all state-changing actions, IP/account
+login throttling stored in MySQL (10/email and 30/IP per 15 minutes), 30-minute idle
+session expiry and 12-hour absolute expiry, session invalidation after password changes,
+account disabling, and server-side role checks on APIs, uploads, exports and SFTP imports.
+There is no two-factor authentication or automated email delivery in v0.2.
+
+**Admin account management:** Sign in, choose **Team accounts**, invite a teammate with
+an Admin/Editor/Viewer role, and privately share the one-time activation URL. Invitations
+expire in 24 hours; admin-issued password-reset links expire in 1 hour. Reset tokens
+are stored as hashes, consumed once, and cannot be recovered afterward. The app
+supports changing or disabling other users and prevents disabling the last admin.
+Users can change their own password via **Account & password**.
+
+**Upgrading from v0.1 on DreamHost:** Back up MySQL and the private directory, then
+update the files via `git pull`. The first authenticated request runs an idempotent
+schema migration, preserving your existing admin account and password. You can also
+run the migration explicitly over SSH with:
+
+```bash
+cd ~/glphoto
+/usr/local/php84/bin/php web/bin/migrate_auth.php
+```
+
+Replace `php84` with the PHP version configured for your site; `php -v` may help
+if SSH already points at the correct PHP version. The private directory needs to
+be writable to record the one-time migration. A safe rollback requires restoring
+both the old source and a backup of the MySQL database.
+
+**If the only admin forgets their password:** SSH to DreamHost and run:
+
+```bash
+cd ~/glphoto/web
+/usr/local/php84/bin/php bin/admin_reset.php admin@example.com
+```
+
+The command prints a private, one-time URL path; prepend your app's HTTPS domain,
+open it and set a new password. No passwords or reset tokens are emailed or written
+to GitHub. Protect SSH access and never paste the reset link into public chat.
+
 ## Included and not included
 
 | Included in this MVP | Not included / limitation |
 | --- | --- |
-| Password-protected image library | No multi-user permissions or 2FA yet |
+| Password-protected image library | No 2FA or external identity providers yet |
 | Responsive modern photo grid and detail inspector | No browser-based facial recognition |
 | Upload JPEG, PNG and WebP | HEIC/TIFF upload not implemented |
 | Search, location/activity/rights/source fields | No automatic reverse-image search or copyright verification |
@@ -92,7 +146,7 @@ Select up to 12 photos, choose one of the presets or exact custom dimensions, ch
 - **Face grouping:** not part of MVP; a private local process would be safer for guest photos.
 - **Similar photographs:** hashes match duplicates/near duplicates, not arbitrary photos of the same subject under different lighting and camera angles. More advanced semantic similarity needs precomputed vectors and an external/local model.
 - **Scalability:** web paging is 48 images; similarity scans up to 25,000 hashes per request and returns at most 30 candidates. Export batches are 12 images and capped at 2,500px each. Large high-resolution files can still hit shared PHP RAM limits; tune accordingly.
-- **Authentication:** one administrator, salted password hashes, cookie sessions, CSRF protection, HTTPS requirement, and private storage are implemented; 2FA, server-side IP rate limiting, audit trails, data retention and access control are future production-hardening tasks.
+- **Authentication:** invitation-only Admin/Editor/Viewer accounts, salted password hashes, secure cookie sessions, CSRF protection, HTTPS requirement, server-side login throttling, and private storage are implemented. 2FA, automated mail delivery, advanced audit trails and external identity providers remain future security improvements.
 - **Backups:** DreamHost short-term backups are not long-term archival guarantees. Back up both private images and the MySQL database yourself.
 
 ## Local checks
@@ -100,10 +154,13 @@ Select up to 12 photos, choose one of the presets or exact custom dimensions, ch
 ```sh
 find public private bin -name '*.php' -print0 | xargs -0 -n1 php -l
 php tests/smoke.php
+php tests/auth_unit.php
+# Optional MySQL integration test, with an EMPTY disposable database only:
+# GLPM_TEST_MYSQL_DSN="mysql:host=127.0.0.1;dbname=glphoto_auth_test;charset=utf8mb4" php tests/auth_mysql.php
 node --check public/assets/app.js
 ```
 
-The development runtime has PHP but **no GD or MySQL extension**, so full integration tests are not possible here. Run the upload/database/GD/cloud smoke test on your DreamHost environment before a full import.
+The local development runtime has PHP but **no GD or MySQL driver**, so full database integration and image tests must run in a correctly configured environment; a separate GitHub Actions job performs MySQL auth integration checks. Run the upload/database/GD/cloud smoke test on your DreamHost environment before a full import.
 
 ## Useful official DreamHost documentation
 

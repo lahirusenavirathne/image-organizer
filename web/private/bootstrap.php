@@ -18,6 +18,7 @@ if (PHP_SAPI !== 'cli') {
     header('Referrer-Policy: no-referrer');
     header('X-Robots-Tag: noindex, nofollow');
     header('X-Frame-Options: DENY');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
     header('Content-Security-Policy: default-src \'self\'; img-src \'self\' data: blob:; style-src \'self\'; script-src \'self\'; connect-src \'self\'; object-src \'none\'; base-uri \'self\'; form-action \'self\'');
 }
 
@@ -43,6 +44,8 @@ function pdo(): PDO {
 }
 function session_start_safe(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
+    ini_set('session.use_strict_mode','1');
+    ini_set('session.use_only_cookies','1');
     session_name('GLPMSESSID');
     session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>PHP_SAPI === 'cli' ? false : !in_array($_SERVER['SERVER_NAME'] ?? '', ['localhost','127.0.0.1'], true),
         'httponly'=>true,'samesite'=>'Lax']);
@@ -59,14 +62,10 @@ function verify_csrf(): void {
         http_response_code(403); throw new RuntimeException('Invalid security token; reload and try again');
     }
 }
-function require_login(): int {
-    session_start_safe();
-    if (!isset($_SESSION['user_id'])) {
-        http_response_code(401);
-        if (str_contains($_SERVER['SCRIPT_NAME'] ?? '', 'index.php')) { header('Location: index.php'); }
-        throw new RuntimeException('Please sign in to access the photo library.');
-    }
-    return (int) $_SESSION['user_id'];
+function require_login(string $minimum='viewer'): int {
+    require_once __DIR__.'/auth.php';
+    $user=auth_require_user($minimum);
+    return (int)$user['id'];
 }
 function clean_text(mixed $value, int $limit = 190): string {
     if (!is_string($value)) return '';

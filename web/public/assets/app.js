@@ -1,6 +1,8 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 const csrf = document.querySelector('meta[name="csrf-token"]').content;
+const userRole = document.body.dataset.role || 'viewer';
+const canEdit = userRole !== 'viewer';
 const state = {page: 1, pages: 1, view: 'all', photos: [], selected: new Set(), current: null, total: 0, matches: null, busy: false};
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sizeStr = (n) => (Number(n) / 1024 / 1024).toFixed(2) + ' MB';
@@ -70,6 +72,7 @@ function inspectPhoto(p) {
   const form=$('details-form');
   for(const key of ['location','attraction','activities','source_folder','source_url','photographer','copyright_text','license','rights_status'])if(form.elements[key])form.elements[key].value=p[key]|| (key==='rights_status'?'Unknown':'');
   $('ai-note').textContent=`AI: ${p.ai_status||'not analyzed'}${p.ai_note?' — '+p.ai_note:''}`;
+  for(const field of form.querySelectorAll('input,select,button'))field.disabled=!canEdit;
 }
 async function showSimilar(id) {
   navToShallow('similar');
@@ -98,7 +101,7 @@ async function uploadFiles(fileList) {
   $('upload').value='';
 }
 function selectedIds(){return [...state.selected];}
-function openExport(){const ids=selectedIds();if(!ids.length){notice('Select photos in the gallery to export.');return;}if(ids.length>12){notice('Select up to 12 photos per export to protect shared-hosting memory and processing time.',true);return;}$('export-ids').value=ids.join(',');$('export-dialog').showModal();}
+function openExport(){if(!canEdit){notice('Viewer accounts cannot export images.',true);return;}const ids=selectedIds();if(!ids.length){notice('Select photos in the gallery to export.');return;}if(ids.length>12){notice('Select up to 12 photos per export to protect shared-hosting memory and processing time.',true);return;}$('export-ids').value=ids.join(',');$('export-dialog').showModal();}
 function updatePreset(){const value=$('preset').value;if(value!=='custom'){const[w,h]=value.split('x');$('export-width').value=w;$('export-height').value=h;}const custom=value==='custom';$('export-width').readOnly=!custom;$('export-height').readOnly=!custom;}
 function throttleInput(callback,delay=280){let timeout;return()=>{clearTimeout(timeout);timeout=setTimeout(callback,delay);};}
 function init(){
@@ -113,8 +116,8 @@ function init(){
   $('next-page').addEventListener('click',()=>{state.page=Math.min(state.pages,state.page+1);load();});
   $('clear-selection').addEventListener('click',()=>{state.selected.clear();renderPhotos(state.photos);});
   $('select-page').addEventListener('click',()=>{for(const p of state.photos)state.selected.add(Number(p.id));renderPhotos(state.photos);});
-  $('upload').addEventListener('change',e=>uploadFiles(e.target.files));
-  $('import-sftp').addEventListener('click',async()=>{if(!confirm('Import up to 12 photos from private/incoming on the server? Originals will become part of your managed library.'))return;try{const r=await request('import_inbox',{});notice(`SFTP batch imported: ${r.imported}. ${r.failures.length?'Errors: '+r.failures.join('; '):''}`);await load();}catch(e){notice(e.message,true);}});
+  if(canEdit)$('upload').addEventListener('change',e=>uploadFiles(e.target.files));
+  if(userRole==='admin')$('import-sftp').addEventListener('click',async()=>{if(!confirm('Import up to 12 photos from private/incoming on the server? Originals will become part of your managed library.'))return;try{const r=await request('import_inbox',{});notice(`SFTP batch imported: ${r.imported}. ${r.failures.length?'Errors: '+r.failures.join('; '):''}`);await load();}catch(e){notice(e.message,true);}});
   $('inspector-close').addEventListener('click',()=>{$('inspector').hidden=true;});
   $('details-form').addEventListener('submit',saveDetails);
   $('find-similar').addEventListener('click',()=>{if(state.current)showSimilar(state.current);});
@@ -123,7 +126,7 @@ function init(){
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
   $('menu-toggle').addEventListener('click',()=>{let on=$('sidebar').classList.toggle('open');$('menu-toggle').setAttribute('aria-expanded',String(on));});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('sidebar').classList.remove('open');$('menu-toggle').setAttribute('aria-expanded','false');}});
-  $('tag-ai').addEventListener('click',async()=>{
+  if(canEdit)$('tag-ai').addEventListener('click',async()=>{
     const ids=selectedIds();if(!ids.length){notice('Select at least one photo for cloud tagging.');return;}if(ids.length>5){notice('For cost and privacy, tag at most five photos per action.',true);return;}
     if(!confirm(`Send ${ids.length} resized photos to OpenAI for optional image classification? This may incur API charges and may include people. No request will be sent without confirmation.`))return;
     let done=0,errors=[];for(const id of ids){try{await request('cloud_ai',{id,confirm:'yes'});done++;}catch(e){errors.push('Photo '+id+': '+e.message);}}

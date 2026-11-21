@@ -1,3 +1,15 @@
+# Changelog
+
+## web-0.2.0 — Invitation-only authentication and roles
+
+- Multi-user Admin, Editor and Viewer roles with server-enforced access controls.
+- Administrator account invitations, account disabling, role changes and one-time reset links.
+- User account password changes and SSH-only lost-admin recovery command.
+- Hashed one-time tokens, MySQL login throttling, secure session expiry and session invalidation.
+- Automatic, locked migration of existing single-admin installations.
+- Authentication unit and MySQL integration tests plus DreamHost deployment instructions.
+- No self-registration or outgoing email required. Two-factor authentication not yet included.
+
 # Web Edition changelog
 
 ## web-0.1.0 — DreamHost Shared Unlimited MVP

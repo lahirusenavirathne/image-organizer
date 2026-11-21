@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once dirname(__DIR__).'/private/bootstrap.php';
+require_once dirname(__DIR__).'/private/auth.php';
 if(installed()){header('Location: index.php');exit;}
 if(!is_dir(APP_PRIVATE) || !is_writable(APP_PRIVATE)) {http_response_code(500);exit('The private folder must be writable by the PHP user.');}
 $token_file=private_path('install-token.txt');
@@ -15,9 +15,9 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     $expected=trim((string)file_get_contents($token_file));
     $submitted=(string)($_POST['install_token']??'');
     if(!hash_equals($expected,$submitted))throw new RuntimeException('Incorrect one-time setup token. Read private/install-token.txt via SFTP.');
-    $email=filter_var($_POST['email']??'',FILTER_VALIDATE_EMAIL);
+    $email=auth_normalize_email($_POST['email']??'');
     $password=(string)($_POST['password']??'');
-    if(!$email || strlen($password)<14)throw new RuntimeException('Use a valid email and an admin password of 14 characters or more');
+    if(!$email || strlen($password)<AUTH_PASSWORD_MIN_LENGTH)throw new RuntimeException('Use a valid email and an admin password of 14 characters or more');
     foreach(['db_host','db_name','db_user','db_pass'] as $key) if(!isset($_POST[$key]) || !is_string($_POST[$key]) || trim($_POST[$key])==='') throw new RuntimeException('All MySQL settings are required');
     $host=trim($_POST['db_host']);$name=trim($_POST['db_name']);$user=trim($_POST['db_user']);$pass=$_POST['db_pass'];
     if(!preg_match('/\A[a-zA-Z0-9._-]+\z/',$host)||!preg_match('/\A[a-zA-Z0-9_\-]+\z/',$name))throw new RuntimeException('Invalid MySQL host or database name');
@@ -27,7 +27,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     foreach(explode(';',$schema) as $sql){ if(trim($sql)!=='')$dbh->exec($sql); }
     $stm=$dbh->prepare('SELECT COUNT(*) FROM users');$stm->execute();
     if((int)$stm->fetchColumn()>0)throw new RuntimeException('This database already has an administrator. Use a new database for a new installation.');
-    $stm=$dbh->prepare('INSERT INTO users(email,password_hash) VALUES (?,?)');$stm->execute([$email,password_hash($password,PASSWORD_DEFAULT)]);
+    $stm=$dbh->prepare("INSERT INTO users(email,password_hash,role,status) VALUES (?,?,'admin','active')");$stm->execute([$email,auth_hash_password($password)]);
     $settings=['db_host'=>$host,'db_name'=>$name,'db_user'=>$user,'db_pass'=>$pass,'openai_api_key'=>''];
     $temp=private_path('config.php.tmp');
     if(file_put_contents($temp,"<?php\nreturn ".var_export($settings,true).";\n",LOCK_EX)===false)throw new RuntimeException('Cannot save private configuration');

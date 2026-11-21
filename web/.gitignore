@@ -6,3 +6,6 @@ private/incoming/
 private/tmp/
 private/import.lock
 .DS_Store
+private/auth-migrate.lock
+private/auth-v2-ready
+private/auth-v2-ready.tmp

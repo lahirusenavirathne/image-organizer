@@ -10,7 +10,7 @@ try{
     if(!is_file($path)){http_response_code(404);exit('File missing');}
     header('Content-Type: '.($thumb?'image/jpeg':$row['mime']));
     header('Content-Disposition: inline; filename="'.($thumb?'thumb.jpg':'photo.'.mime_extension($row['mime'])).'"');
-    header('Cache-Control: private, max-age=86400');
+    header('Cache-Control: private, no-store');
     header('X-Content-Type-Options: nosniff');header('Content-Length: '.(string)filesize($path));
     readfile($path);
 }catch(Throwable $e){http_response_code(403);exit('Not authorized to view image');}

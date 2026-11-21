@@ -47,11 +47,13 @@ try{
     }
     method_post();verify_csrf();
     if($action==='upload'){
+        require_login('editor');
         $file=$_FILES['photo']??null;
         if(!$file||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file($file['tmp_name']??''))throw new RuntimeException('Upload failed. Check PHP upload_max_filesize and post_max_size on DreamHost.');
         $record=ingest_image($file['tmp_name'],(string)$file['name'],'Browser upload',true);respond(['success'=>true,'photo'=>$record]);
     }
     if($action==='import_inbox'){
+        require_login('admin');
         ensure_dirs();$root=realpath(private_path('incoming'));
         if(!$root)throw new RuntimeException('SFTP incoming folder missing');
         $result=[];$fail=[];
@@ -67,6 +69,7 @@ try{
         respond(['success'=>true,'imported'=>count($result),'failures'=>$fail,'batch_limit'=>BATCH_SIZE]);
     }
     if($action==='save'){
+        require_login('editor');
         $id=int_id($_POST['id']??null);
         $fields=['location'=>150,'attraction'=>190,'activities'=>500,'source_folder'=>500,'source_url'=>1000,'photographer'=>255,'copyright_text'=>1000,'license'=>255];
         $data=[];foreach($fields as $key=>$max)$data[$key]=clean_text($_POST[$key]??'',$max);
@@ -76,6 +79,7 @@ try{
         $st->execute([...array_values($data),$rights,$id]);respond(['success'=>true]);
     }
     if($action==='cloud_ai'){
+        require_login('editor');
         $id=int_id($_POST['id']??null);
         if(($_POST['confirm']??'')!=='yes')throw new RuntimeException('Explicit consent required before image upload to OpenAI');
         $key=(string)(config()['openai_api_key']??'');if($key==='')throw new RuntimeException('Cloud AI not configured. Add your API key to private/config.php on the server.');

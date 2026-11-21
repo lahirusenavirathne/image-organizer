@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require_once dirname(__DIR__).'/private/images.php';
 try{
-    require_login();method_post();verify_csrf();check_gd();
+    require_login('editor');method_post();verify_csrf();check_gd();
     if(!class_exists('ZipArchive'))throw new RuntimeException('PHP ZipArchive extension is required');
     $raw=explode(',',(string)($_POST['ids']??''));
     if(count($raw)<1||count($raw)>BATCH_SIZE)throw new RuntimeException('Select between 1 and '.BATCH_SIZE.' photographs per export');
@@ -28,4 +28,4 @@ try{
     }finally{fclose($csv);$zip->close();foreach($tmp as $file)@unlink($file);}
     header('Content-Type: application/zip');header('Content-Disposition: attachment; filename="guia-lanka-exports.zip"');header('Content-Length: '.filesize($zipPath));
     header('Cache-Control: no-store');readfile($zipPath);@unlink($zipPath);exit;
-}catch(Throwable $e){http_response_code(400);header('Content-Type: text/plain; charset=utf-8');exit('Export failed: '.$e->getMessage());}
+}catch(Throwable $e){if(http_response_code()<400)http_response_code(400);header('Content-Type: text/plain; charset=utf-8');exit('Export failed: '.$e->getMessage());}
