@@ -32,7 +32,7 @@ def test_modern_sidebar_gallery_filters_inspector_and_rights(application, tmp_pa
         assert window.list.count() == 2
         assert window.list.objectName() == 'PhotoGrid'
         assert not window.inspector.isVisible()  # opens on selection
-        assert len(window.nav_buttons) == 6
+        assert len(window.nav_buttons) == 10
         assert window.filter_panel.isHidden()
         window.navigate('locations')
         assert not window.filter_panel.isHidden()
@@ -80,3 +80,31 @@ def test_photo_card_labels_and_search(application, tmp_path):
         assert window.list.count() == 1
     finally:
         window.close()
+
+
+def test_my_drive_navigation_and_trash(application,tmp_path):
+    from app import drive
+    folder=tmp_path/'source';folder.mkdir()
+    Image.new('RGB',(64,64),'green').save(folder/'image.jpg')
+    window=Window(tmp_path/'app_data')
+    try:
+        imported=drive.import_tree(window.db_path,folder)
+        assert imported['indexed']==1
+        window.refresh_folder_tree()
+        window.navigate('drive')
+        assert window.folder_tree.topLevelItemCount()==1
+        fid=window.folder_tree.topLevelItem(0).data(0,Qt.ItemDataRole.UserRole)
+        window.open_drive_folder(fid)
+        assert window.drive_view=='folder' and window.list.count()==1
+        window.view_toggle.setChecked(True)
+        assert window.view_mode=='list'
+        window.view_toggle.setChecked(False)
+        assert window.view_mode=='grid'
+        pid=window.list.item(0).data(Qt.ItemDataRole.UserRole)
+        with db.connect(window.db_path) as con:drive.trash_photos(con,[pid])
+        window.navigate('trash')
+        assert window.list.count()==1
+        with db.connect(window.db_path) as con:drive.restore_photos(con,[pid])
+        window.navigate('all')
+        assert window.list.count()==1
+    finally:window.close()

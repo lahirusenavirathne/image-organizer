@@ -50,6 +50,8 @@ def init(path: Path):
         migrate_library(con)
         from .visual_search import migrate as migrate_visual
         migrate_visual(con)
+        from .drive import migrate as migrate_drive
+        migrate_drive(con)
 
 def upsert(con: sqlite3.Connection, meta: dict):
     # Retain manually adjusted categories, source and license on re-scan.
@@ -116,7 +118,7 @@ def photo_by_id(con, photo_id: int):
     return con.execute('SELECT * FROM photos WHERE id=?', (photo_id,)).fetchone()
 
 def query_photos(con, search='', location='', activity='', group_id=None, offset=0, limit=120):
-    where, args = ['1=1'], []
+    where, args = ['deleted_at IS NULL'], []
     if search:
         like = '%' + search.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
         where.append("(path LIKE ? ESCAPE '\\' OR attraction LIKE ? ESCAPE '\\' OR activities LIKE ? ESCAPE '\\' OR source_url LIKE ? ESCAPE '\\' OR copyright LIKE ? ESCAPE '\\')")

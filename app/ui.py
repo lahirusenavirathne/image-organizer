@@ -12,10 +12,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFormLayout, QSplitter, QScrollArea, QTabWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QSpinBox, QDialog, QDialogButtonBox,
     QProgressBar, QGroupBox, QInputDialog, QAbstractItemView, QCheckBox,
-    QFrame, QToolButton, QMenu
+    QFrame, QToolButton, QMenu, QTreeWidget, QTreeWidgetItem, QStyledItemDelegate
 )
 from PIL import Image, ImageOps
-from . import db
+from . import db, drive
 from .catalog import ACTIVITIES
 from .operations import preview_moves, execute_moves, undo_last_batch, export_photos
 from .faces import download_models, group_faces
@@ -180,6 +180,9 @@ class Window(QMainWindow):
         self.offset=0
         self.total=0
         self.group_filter=None
+        self.drive_view='all'
+        self.active_folder_id=None
+        self.view_mode='grid'
         self.visible_rows={}
         self.current_id=None
         self.task=None
@@ -189,6 +192,7 @@ class Window(QMainWindow):
         self.setMinimumSize(1040,700)
         self.setStyleSheet(STYLE)
         self.build_ui()
+        self.refresh_folder_tree()
         self.load_page()
         self.refresh_groups()
 
@@ -255,6 +259,10 @@ class Window(QMainWindow):
         self.nav_buttons = {}
         for key, text in [
             ('all', '▦    All photos'),
+            ('drive', '▣    My Drive'),
+            ('recent', '◷    Recent'),
+            ('starred', '★    Starred'),
+            ('trash', '♻    Trash'),
             ('locations', '⌖    Locations'),
             ('activities', '◈    Activities'),
             ('people', '♙    People'),
@@ -268,6 +276,19 @@ class Window(QMainWindow):
             button.clicked.connect(lambda checked=False, name=key: self.navigate(name))
             side.addWidget(button)
             self.nav_buttons[key] = button
+        side.addSpacing(12)
+        folder_title=QLabel('MY FOLDERS')
+        folder_title.setObjectName('Tiny')
+        side.addWidget(folder_title)
+        self.folder_tree=QTreeWidget()
+        self.folder_tree.setHeaderHidden(True)
+        self.folder_tree.setMinimumHeight(130)
+        self.folder_tree.setMaximumHeight(280)
+        self.folder_tree.itemClicked.connect(self.on_folder_selected)
+        side.addWidget(self.folder_tree,1)
+        new_folder=QPushButton('+ New folder')
+        new_folder.clicked.connect(self.new_drive_folder)
+        side.addWidget(new_folder)
         side.addStretch()
         side.addWidget(QLabel('ORGANIZE SAFELY'))
         helper = QLabel('Local photo library\nNo automatic file moves\nUnknown rights stay unknown')
@@ -368,6 +389,17 @@ class Window(QMainWindow):
         photo_layout = QVBoxLayout(photos)
         photo_layout.setContentsMargins(0, 0, 0, 0)
         photo_layout.setSpacing(8)
+        # Virtual folder controls never move external original files.
+        folder_nav=QHBoxLayout()
+        self.up_folder=QPushButton('↑ Up')
+        self.up_folder.clicked.connect(self.go_up_folder)
+        self.folder_breadcrumb=QLabel('My Drive')
+        self.folder_breadcrumb.setObjectName('Subtle')
+        folder_nav.addWidget(self.up_folder)
+        folder_nav.addWidget(self.folder_breadcrumb,1)
+        photo_layout.addLayout(folder_nav)
+        self.folder_buttons=QHBoxLayout()
+        photo_layout.addLayout(self.folder_buttons)
         gallery_info = QHBoxLayout()
         self.gallery_title = QLabel('All photographs')
         self.gallery_title.setObjectName('SectionTitle')
@@ -376,6 +408,18 @@ class Window(QMainWindow):
         self.selection_label.setObjectName('Subtle')
         gallery_info.addWidget(self.selection_label)
         gallery_info.addStretch()
+        self.sort_by=QComboBox()
+        self.sort_by.addItem('Newest', 'newest')
+        self.sort_by.addItem('Oldest', 'oldest')
+        self.sort_by.addItem('Name', 'name')
+        self.sort_by.addItem('Largest', 'size')
+        self.sort_by.currentIndexChanged.connect(self.reset_page)
+        gallery_info.addWidget(self.sort_by)
+        self.view_toggle=QToolButton()
+        self.view_toggle.setText('☷ List')
+        self.view_toggle.setCheckable(True)
+        self.view_toggle.toggled.connect(self.toggle_list_view)
+        gallery_info.addWidget(self.view_toggle)
         compact = QToolButton()
         compact.setText('⊞  Compact')
         compact.setToolTip('Toggle smaller photo cards')
@@ -549,6 +593,22 @@ class Window(QMainWindow):
         entry('Match reference examples', self.find_reference_selected)
         self.more_menu.addSeparator()
         self.more_menu.addSection('ORGANIZE & QUALITY')
+        self.more_menu.addSection('MY DRIVE — VIRTUAL FOLDERS')
+        entry('New folder', self.new_drive_folder)
+        entry('Rename current folder', self.rename_drive_folder)
+        entry('Move current folder', self.move_drive_folder)
+        entry('Move current folder to Trash', self.trash_drive_folder)
+        entry('Rename selected photo (display name)', self.rename_drive_photo)
+        entry('Move selected photos to folder', self.move_to_drive_folder)
+        entry('Make local copies in folder', self.copy_to_drive_folder)
+        entry('Star / unstar selected photos', self.star_drive_photos)
+        entry('Move selected photos to Trash', self.trash_drive_photos)
+        entry('Restore selected photos from Trash', self.restore_drive_photos)
+        entry('Remove selected catalog records from Trash', self.purge_drive_photos)
+        entry('Remove trashed folder from catalog', self.purge_drive_folder)
+        entry('Save untouched originals to folder', self.download_originals)
+        self.more_menu.addSeparator()
+        self.more_menu.addSection('ADVANCED FILE OPERATIONS')
         entry('Review and move selected photos', self.move_selected)
         entry('Undo last move batch', self.undo_moves)
         entry('Scan image quality', self.analyze_quality)
@@ -566,6 +626,16 @@ class Window(QMainWindow):
             button.update()
 
     def navigate(self, key):
+        if key in ('all','drive','recent','starred','trash'):
+            self.drive_view=key
+            self.active_folder_id=None
+            self.group_filter=None
+            self.tabs.setCurrentIndex(0)
+            self._set_nav_active(key)
+            self.reset_page()
+            return
+        self.drive_view='all'
+        self.active_folder_id=None
         self._set_nav_active(key)
         if key == 'people':
             self.heading_title.setText('People & Face Groups')
@@ -596,7 +666,28 @@ class Window(QMainWindow):
     def toggle_filters(self, checked):
         self.filter_panel.setVisible(bool(checked))
 
+    def toggle_list_view(self, checked):
+        self.view_mode='list' if checked else 'grid'
+        self.list.setUpdatesEnabled(False)
+        if checked:
+            self.list.setItemDelegate(QStyledItemDelegate(self.list))
+            self.list.setViewMode(QListView.ViewMode.ListMode)
+            self.list.setGridSize(QSize())
+            self.list.setIconSize(QSize(90,65))
+            self.list.setWrapping(False)
+            self.view_toggle.setText('▦ Grid')
+        else:
+            self.list.setItemDelegate(PhotoCardDelegate(self.list))
+            self.list.setViewMode(QListView.ViewMode.IconMode)
+            self.list.setWrapping(True)
+            self.list.setGridSize(QSize(252,234))
+            self.list.setIconSize(QSize(230,146))
+            self.view_toggle.setText('☷ List')
+        self.list.setUpdatesEnabled(True)
+        self.list.viewport().update()
+
     def toggle_grid_density(self, compact):
+        if self.view_mode=='list':return
         if compact:
             self.list.setIconSize(QSize(180, 120))
             self.list.setGridSize(QSize(205, 208))
@@ -657,10 +748,12 @@ class Window(QMainWindow):
         source,okay=QInputDialog.getText(self,'Import provenance (optional)',
             'Original website/source URL for this folder (leave blank if unknown):')
         if not okay: return
-        self.task_start(lambda progress:db.scan_folder(self.db_path,Path(folder),source,progress),self.finish_import)
+        destination=self.active_folder_id if self.drive_view in ('drive','folder') else None
+        self.task_start(lambda progress:drive.import_tree(self.db_path,Path(folder),destination,source,progress),self.finish_import)
 
     def finish_import(self,result):
-        self.reset_page()
+        self.refresh_folder_tree()
+        self.navigate('all')
         self.status.setText(f"Scan complete: {result['indexed']} indexed, {result['unchanged']} unchanged, {result['failed']} errors")
         if result['failed']:
             QMessageBox.warning(self,'Import warnings','\n'.join(result['examples']))
@@ -678,9 +771,11 @@ class Window(QMainWindow):
     def load_page(self):
         self.refresh_location_choices()
         with db.connect(self.db_path) as con:
-            rows, total = db.query_photos(con, self.search.text().strip(),
+            rows, total = drive.query_photos(con, self.search.text().strip(),
                 self.locations.currentData() or '', self.activities.currentData() or '',
-                self.group_filter, self.offset, PAGE_SIZE)
+                self.group_filter, self.offset, PAGE_SIZE, view=self.drive_view,
+                folder_id=self.active_folder_id, sort=self.sort_by.currentData() or 'newest')
+        self.refresh_folder_strip()
         if self.offset and not rows and total:
             self.offset = max(0, ((total - 1) // PAGE_SIZE) * PAGE_SIZE)
             return self.load_page()
@@ -694,9 +789,10 @@ class Window(QMainWindow):
                 tags = json.loads(row['activities'] or '[]')
             except (ValueError, TypeError):
                 tags = []
-            item = QListWidgetItem(path.name)
+            display=row['display_name'] or path.name
+            item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, row['id'])
-            item.setData(Qt.ItemDataRole.UserRole + 1, path.name)
+            item.setData(Qt.ItemDataRole.UserRole + 1, display)
             item.setData(Qt.ItemDataRole.UserRole + 2,
                 row['location'] or row['attraction'] or (tags[0] if tags else 'Unclassified'))
             item.setData(Qt.ItemDataRole.UserRole + 3, 'AI tagged' if row['ai_source'] and row['ai_source'] != 'Manual' else '')
@@ -712,7 +808,9 @@ class Window(QMainWindow):
         self.photo_title.setText('Select an image')
         self.preview.clear()
         self.preview.setText('Photo preview')
-        self.total_label.setText(f'{total:,} photos indexed' if not self.search.text().strip() else f'{total:,} matching photos')
+        self.total_label.setText(f'{total:,} photos in this view')
+        self.gallery_title.setText({'all':'All photographs','drive':'My Drive','folder':'Current folder',
+                                    'recent':'Recent photographs','starred':'Starred photographs','trash':'Trash'}.get(self.drive_view,'Photographs'))
         self.selection_label.setText('Select photos to classify, compare or export')
         self.page_label.setText(f'{self.offset+1 if total else 0}–{min(self.offset+PAGE_SIZE,total)} of {total:,}')
         self.prev.setEnabled(self.offset > 0)
@@ -756,7 +854,7 @@ class Window(QMainWindow):
         self.splitter.setSizes([920, 340])
         count = len(chosen)
         self.selection_label.setText(f'{count} selected')
-        self.photo_title.setText(Path(row['path']).name)
+        self.photo_title.setText(row['display_name'] or Path(row['path']).name)
         try:
             pix=QPixmap(row['path'])
             if pix.isNull():
@@ -902,6 +1000,238 @@ class Window(QMainWindow):
             applied=apply_reference(con,pid,match['id'])
         self.load_page()
         self.status.setText(f"Approved reference label: {applied['kind']} — {applied['label']}")
+
+    # ----- My Drive: local virtual folders, protected originals -----
+    def refresh_folder_tree(self):
+        if not hasattr(self,'folder_tree'):return
+        with db.connect(self.db_path) as con: rows=drive.all_folders(con)
+        self.folder_tree.blockSignals(True)
+        self.folder_tree.clear()
+        nodes={}
+        for row in rows:
+            item=QTreeWidgetItem([row['name']])
+            item.setData(0,Qt.ItemDataRole.UserRole,row['id'])
+            nodes[row['id']]=item
+        for row in rows:
+            item=nodes[row['id']]
+            parent=nodes.get(row['parent_id'])
+            if parent:parent.addChild(item)
+            else:self.folder_tree.addTopLevelItem(item)
+        self.folder_tree.expandToDepth(1)
+        self.folder_tree.blockSignals(False)
+
+    def refresh_folder_strip(self):
+        if not hasattr(self,'folder_buttons'):return
+        while self.folder_buttons.count():
+            item=self.folder_buttons.takeAt(0)
+            widget=item.widget()
+            if widget:widget.deleteLater()
+        self.up_folder.setVisible(self.drive_view=='folder')
+        if self.drive_view not in ('folder','drive','trash'):
+            self.folder_breadcrumb.setText('')
+            return
+        with db.connect(self.db_path) as con:
+            if self.drive_view=='folder':
+                try:
+                    trail=drive.ancestors(con,self.active_folder_id)
+                    self.folder_breadcrumb.setText('My Drive / '+' / '.join(x['name'] for x in trail))
+                    rows=drive.children(con,self.active_folder_id)
+                except ValueError:
+                    self.drive_view='drive';self.active_folder_id=None
+                    rows=drive.children(con,None)
+            elif self.drive_view=='drive':
+                self.folder_breadcrumb.setText('My Drive')
+                rows=drive.children(con,None)
+            else:
+                self.folder_breadcrumb.setText('Deleted folders — select to restore')
+                rows=drive.all_folders(con,include_trashed=True)
+        for row in rows[:12]:
+            fid=row['id'];name=row['name']
+            button=QPushButton(('♻ ' if self.drive_view=='trash' else '📁 ')+name)
+            button.setToolTip(name)
+            button.clicked.connect(lambda checked=False,number=fid:self.open_drive_folder(number))
+            self.folder_buttons.addWidget(button)
+        self.folder_buttons.addStretch()
+
+    def on_folder_selected(self,item,column):
+        fid=item.data(0,Qt.ItemDataRole.UserRole)
+        if fid:self.open_drive_folder(int(fid))
+
+    def open_drive_folder(self,fid):
+        if self.drive_view=='trash':
+            if QMessageBox.question(self,'Restore folder','Restore this folder and the photographs deleted with it?')!=QMessageBox.StandardButton.Yes:return
+            try:
+                with db.connect(self.db_path) as con:drive.restore_folder(con,fid)
+            except Exception as exc:QMessageBox.warning(self,'Restore failed',str(exc));return
+            self.refresh_folder_tree();self.reset_page();return
+        self.drive_view='folder';self.active_folder_id=fid
+        self._set_nav_active('drive')
+        self.tabs.setCurrentIndex(0)
+        self.reset_page()
+
+    def go_up_folder(self):
+        if self.drive_view!='folder':return
+        try:
+            with db.connect(self.db_path) as con:
+                row=drive.folder(con,self.active_folder_id)
+                parent=row['parent_id']
+        except ValueError:parent=None
+        self.active_folder_id=parent
+        self.drive_view='folder' if parent is not None else 'drive'
+        self.reset_page()
+
+    def new_drive_folder(self):
+        name,okay=QInputDialog.getText(self,'New folder','Folder name:')
+        if not okay:return
+        try:
+            with db.connect(self.db_path) as con:
+                drive.create_folder(con,name,self.active_folder_id if self.drive_view in ('folder','drive') else None)
+            self.refresh_folder_tree();self.navigate('drive')
+        except Exception as exc:QMessageBox.warning(self,'Folder error',str(exc))
+
+    def rename_drive_folder(self):
+        if self.active_folder_id is None:
+            QMessageBox.information(self,'Select folder','Open a folder from the sidebar first.');return
+        with db.connect(self.db_path) as con:row=drive.folder(con,self.active_folder_id)
+        name,okay=QInputDialog.getText(self,'Rename folder','New folder name:',text=row['name'])
+        if not okay:return
+        try:
+            with db.connect(self.db_path) as con:drive.rename_folder(con,self.active_folder_id,name)
+            self.refresh_folder_tree();self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Rename failed',str(exc))
+
+    def choose_drive_folder(self,title):
+        with db.connect(self.db_path) as con:
+            folders=drive.all_folders(con)
+            paths=[]
+            for row in folders:
+                trail=drive.ancestors(con,row['id'])
+                paths.append(('/'.join(r['name'] for r in trail),row['id']))
+        options=['My Drive (root)']+[name for name,_ in paths]
+        choice,okay=QInputDialog.getItem(self,title,'Destination folder:',options,0,False)
+        if not okay:return False,None
+        return True,None if choice==options[0] else dict(paths)[choice]
+
+    def move_drive_folder(self):
+        if self.active_folder_id is None:return
+        okay,target=self.choose_drive_folder('Move folder')
+        if not okay:return
+        try:
+            with db.connect(self.db_path) as con:drive.move_folder(con,self.active_folder_id,target)
+            self.refresh_folder_tree();self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Move failed',str(exc))
+
+    def trash_drive_folder(self):
+        if self.active_folder_id is None:return
+        if QMessageBox.question(self,'Trash folder','Hide this folder and its contents in local Trash? Original files remain on disk.')!=QMessageBox.StandardButton.Yes:return
+        try:
+            with db.connect(self.db_path) as con:drive.trash_folder(con,self.active_folder_id)
+            self.active_folder_id=None;self.drive_view='drive';self.refresh_folder_tree();self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Trash failed',str(exc))
+
+    def rename_drive_photo(self):
+        ids=self.selected_ids()
+        if len(ids)!=1:return
+        with db.connect(self.db_path) as con:row=drive._active_photo(con,ids[0])
+        name,okay=QInputDialog.getText(self,'Rename display name','Original file is not renamed on disk:',text=row['display_name'] or Path(row['path']).name)
+        if not okay:return
+        try:
+            with db.connect(self.db_path) as con:drive.set_photo_name(con,ids[0],name)
+            self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Rename failed',str(exc))
+
+    def move_to_drive_folder(self):
+        ids=self.selected_ids()
+        if not ids:return
+        okay,destination=self.choose_drive_folder('Move to folder')
+        if not okay:return
+        try:
+            with db.connect(self.db_path) as con:count=drive.move_photos(con,ids,destination)
+            self.reset_page();self.status.setText(f'{count} photos organized; physical originals unchanged.')
+        except Exception as exc:QMessageBox.warning(self,'Move failed',str(exc))
+
+    def copy_to_drive_folder(self):
+        ids=self.selected_ids()
+        if not ids:return
+        okay,destination=self.choose_drive_folder('Copy photos')
+        if not okay:return
+        if QMessageBox.question(self,'Create copies','Make new local copies in application-managed storage? Source originals are unchanged.')!=QMessageBox.StandardButton.Yes:return
+        self.task_start(lambda p:drive.copy_photos(self.db_path,ids,self.app_dir,destination,p),self.finish_drive_copies)
+
+    def finish_drive_copies(self,result):
+        self.reset_page();self.status.setText(f"Copied {result['copied']} photographs")
+        if result['errors']:QMessageBox.warning(self,'Copy warnings','\n'.join(result['errors']))
+
+    def star_drive_photos(self):
+        ids=self.selected_ids()
+        if not ids:return
+        try:
+            with db.connect(self.db_path) as con:
+                active=[drive._active_photo(con,i) for i in ids]
+                drive.set_star(con,ids,not all(row['starred'] for row in active))
+            self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Star failed',str(exc))
+
+    def trash_drive_photos(self):
+        ids=self.selected_ids()
+        if not ids:return
+        if QMessageBox.question(self,'Move to Trash',f'Move {len(ids)} photographs to catalog Trash? Original files remain on disk.')!=QMessageBox.StandardButton.Yes:return
+        try:
+            with db.connect(self.db_path) as con:drive.trash_photos(con,ids)
+            self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Trash failed',str(exc))
+
+    def restore_drive_photos(self):
+        if self.drive_view!='trash':QMessageBox.information(self,'Trash','Open Trash first.');return
+        ids=self.selected_ids()
+        if not ids:return
+        try:
+            with db.connect(self.db_path) as con:drive.restore_photos(con,ids)
+            self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Restore failed',str(exc))
+
+    def purge_drive_photos(self):
+        if self.drive_view!='trash':QMessageBox.information(self,'Trash','Open Trash first.');return
+        ids=self.selected_ids()
+        if not ids:return
+        answer=QMessageBox.question(self,'Remove catalog records',
+            f'Permanently remove {len(ids)} records from the Photo Manager catalog?\n\n'
+            'The source photographs on disk are NEVER deleted by this action.\n'
+            'Catalog labels, references, and related recognition data may be lost.')
+        if answer!=QMessageBox.StandardButton.Yes:return
+        try:
+            with db.connect(self.db_path) as con:drive.remove_catalog_records(con,ids)
+            self.reset_page()
+        except Exception as exc:QMessageBox.warning(self,'Removal failed',str(exc))
+
+    def purge_drive_folder(self):
+        if self.drive_view!='trash':
+            QMessageBox.information(self,'Trash','Open Trash first.');return
+        with db.connect(self.db_path) as con:
+            rows=drive.all_folders(con,include_trashed=True)
+            options={f"{r['name']} (#{r['id']})":r['id'] for r in rows}
+        if not options:return
+        name,okay=QInputDialog.getItem(self,'Remove trashed folder','Folder:',list(options),0,False)
+        if not okay:return
+        if QMessageBox.question(self,'Permanent catalog removal',
+            'Remove this folder, its descendants and trashed photo records from the local catalog?\n\n'
+            'Source photographs on disk are NEVER deleted. This cannot be undone.')!=QMessageBox.StandardButton.Yes:return
+        try:
+            with db.connect(self.db_path) as con:result=drive.purge_folder(con,options[name])
+            self.refresh_folder_tree();self.reset_page()
+            self.status.setText(f"Removed {result['folders']} virtual folders and {result['catalog_records']} catalog records")
+        except Exception as exc:QMessageBox.warning(self,'Removal failed',str(exc))
+
+    def download_originals(self):
+        ids=self.selected_ids()
+        if not ids:return
+        dest=QFileDialog.getExistingDirectory(self,'Choose destination for untouched originals')
+        if not dest:return
+        self.task_start(lambda p:drive.save_originals(self.db_path,ids,Path(dest),p),self.finish_saved_originals)
+
+    def finish_saved_originals(self,result):
+        self.status.setText(f"Saved {result['copied']} original image copies in {result['destination']}")
+        if result['errors']:QMessageBox.warning(self,'Save warnings','\n'.join(result['errors']))
 
     def analyze_quality(self):
         if QMessageBox.question(self,'Analyze entire library',
@@ -1110,6 +1440,8 @@ class Window(QMainWindow):
 
     def clear_filters(self):
         self.group_filter=None
+        self.drive_view='all'
+        self.active_folder_id=None
         self.search.clear()
         self.locations.setCurrentIndex(0)
         self.activities.setCurrentIndex(0)

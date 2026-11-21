@@ -1,3 +1,12 @@
+## v1.0.0-rc5 — Drive-style Desktop Folder Management
+
+- Virtual folder hierarchy, folder tree, folder import, breadcrumbs, My Drive, Recent, Starred, and Trash views.
+- Photo display rename, virtual folder moves, explicit managed local copies, and safe untouched-original exports.
+- Recovery and catalog-only purge: originals are never silently deleted; existing advanced physical moves retain explicit review and undo.
+- SQLite additive schema migration; original paths, face indexing, visual embeddings and AI review remain intact.
+- Matching workflow with web Phase 1 v0.3; automatic desktop/web synchronization is not implemented.
+- Added core safety tests and Windows GUI smoke tests.
+
 ## 1.0.0-rc4 — Modern native desktop interface
 
 - Implemented persistent light navigation matching the approved gallery concept.

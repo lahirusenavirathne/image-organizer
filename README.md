@@ -1,4 +1,20 @@
-# Guia Lanka Photo Manager — v1.0.0-rc4
+# Guia Lanka Photo Manager — v1.0.0-rc5
+
+## v1.0.0-rc5 — Desktop Drive-style feature parity (web v0.3)
+
+This version updates the **Windows desktop** software to offer a local equivalent of the web app's Phase 1 file manager. Both editions can now organize a photo collection with nested folders, a My Drive view, Recent, Starred, Trash, rename/move/copy, original downloads and sorted grid/list views.
+
+**User interface:** New My Drive/Recent/Starred/Trash sidebar destinations, folder tree and breadcrumbs, `+ New folder`, list/grid switch, sorting, and a Drive actions section under **More**. Importing a folder preserves its hierarchy as virtual folders while retaining every original image at its existing path. `Save untouched originals` makes safe filesystem copies without overwriting existing files. Explicit `Copy` stores duplicates in the application's managed local storage. Previous OpenCLIP, visual similarity, face groups, metadata and exports remain available.
+
+**Critical safety distinction:** On desktop, rename and move **within My Drive** change SQLite catalog values, not underlying photo file paths. Trash, restore and permanent removal act on the *catalog only*; original source photos are never deleted. The pre-existing separately named **Advanced file moves** tool still requires preview/confirmation and keeps undo history. The DreamHost web library is separate; **there is no automatic desktop/web file synchronization**. Read [PLATFORM_PARITY.md](PLATFORM_PARITY.md) before relying on both editions.
+
+**Upgrade:** Back up `%LOCALAPPDATA%\\GuiaLankaPhotoManager` and your source photos. Extract the rc5 ZIP into `C:\\GLPhoto`, replacing program files only. Run `START_WINDOWS.bat`. The SQLite database migration is additive. AI engine does not normally need reinstalling.
+
+**Verification:** 38 local core/unit tests pass; GUI tests are included but skipped in Linux where PySide6 is unavailable. The Windows UI, network share imports and large-library performance must be verified on-device. This release is a testing candidate, **not an auto-synchronizing production deployment**.
+
+---
+
+## Previous release — v1.0.0-rc4
 
 **Windows photo organizer for local Sri Lankan travel photos; source release candidate with visual similarity search.**
 
