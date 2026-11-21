@@ -1,3 +1,19 @@
+# Web v0.5.0 — safe Windows companion uploads
+
+- New write-token `POST ?resource=sync&action=preflight` validates SHA-256, file size, destination and filename before uploading.
+- Desktop opt-in multipart uploads include expected SHA-256, rechecked against the uploaded bytes.
+- A per-folder MySQL advisory lock serializes desktop sync requests and prevents identical uploads from racing into duplicate records.
+- Duplicate checks resolve by checksum first; a different file with the same display name returns HTTP 409 (never overwrites).
+- Browser uploads and all existing login/role/trash behavior unchanged.
+
+## web-0.4.0-api1 - API v1 (staging)
+
+- Versioned Bearer-token JSON API for browsing, folders, uploads, editing, copying, Trash, and restore.
+- User-owned revocable, time-limited read/write API tokens tied to current role and password version.
+- No bearer token in URL, no public CORS, no irreversible delete API.
+- DB-backed request rate limits and SSH migration helper.
+- Existing browser sessions remain independent of API authentication.
+
 # Changelog
 
 ## web-0.2.0 — Invitation-only authentication and roles

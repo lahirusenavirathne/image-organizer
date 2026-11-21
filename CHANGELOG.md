@@ -1,3 +1,11 @@
+# v1.0.0-rc6 — DreamHost Web companion (manual upload)
+
+- Added HTTPS API v1 connection, scoped Bearer token with Windows Credential Manager storage (optional).
+- Added selected-photo uploads (max 20 per run), SHA-256 preflight, conflict review, and durable SQLite retry queue.
+- Same-content photos are recognized as already present. Different-content, same-name photos are never overwritten.
+- Source images remain untouched; the client never calls remote deletion endpoints.
+- Scope: manual one-way upload only; failed whole files are retried, not byte-range chunks or live two-way sync.
+
 ## v1.0.0-rc5 — Drive-style Desktop Folder Management
 
 - Virtual folder hierarchy, folder tree, folder import, breadcrumbs, My Drive, Recent, Starred, and Trash views.

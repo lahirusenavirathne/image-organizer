@@ -1,3 +1,30 @@
+## Web companion — rc6 manual photo transfer
+
+The Windows desktop app can now send selected photographs to the DreamHost web photo manager.
+Open **More → DreamHost Web API → Test web API connection**. Create a *write*
+API token on your **staging** website's `/api-tokens.php` page; paste it once in
+Windows. Choose **Remember** to store it in Windows Credential Manager using
+`keyring`, or leave it unchecked for temporary in-memory use. Re-run
+`INSTALL_WINDOWS.bat` after replacing the source files to install `keyring`.
+
+From the local Photo Library, select up to 20 JPEG/PNG/WebP photos, then choose
+**More → Upload selected photos to web** and confirm. Photos upload to the remote
+My Drive root by default. You may enter an existing remote folder ID instead.
+Use **Resume failed/interrupted web uploads** to retry whole photos after a
+network outage. A lost success response is reconciled with SHA-256 on the
+server so retrying does not create duplicate copies. The server also refuses
+to overwrite a different image that has the same filename in the destination.
+To fix a filename conflict, review it and rename the local *display name*
+before explicitly retrying that photo. No originals are moved or deleted.
+
+**Not a two-way sync:** It does not download remote files, replicate folder trees,
+reconcile tags, remove local/remote originals, or resume a partial file from
+its byte offset. It is a safe, manually triggered upload bridge intended for
+initial staging tests. Limit 20 files/click, 25 MiB/image; verify usage limits
+on DreamHost. A Bearer token should never be pasted into chat or GitHub.
+
+---
+
 # Guia Lanka Photo Manager — v1.0.0-rc5
 
 ## v1.0.0-rc5 — Desktop Drive-style feature parity (web v0.3)

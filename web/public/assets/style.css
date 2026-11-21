@@ -45,3 +45,5 @@
 @media(max-width:640px){.folder-grid{grid-template-columns:1fr 1fr;gap:9px}.folder-card{padding:7px}.folder-controls{gap:4px}.mini-action{padding:6px 8px}.topbar{flex-wrap:wrap}.topbar #new-folder{font-size:11px}.gallery.list-mode .photo-card{grid-template-columns:95px minmax(0,1fr)}.sort-label{order:initial}}
 
 .trashed-photo{height:158px;display:grid;place-items:center;font-size:40px;background:#f2f4f1;color:#85958a}.gallery.list-mode .trashed-photo{height:88px;font-size:28px}
+
+.api-token-value{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;width:100%;max-width:100%;margin:8px 0 12px} .auth-card input:user-invalid{outline:2px solid #c95d4d;outline-offset:1px}

@@ -52,6 +52,8 @@ def init(path: Path):
         migrate_visual(con)
         from .drive import migrate as migrate_drive
         migrate_drive(con)
+        from .web_sync import migrate as migrate_web_sync
+        migrate_web_sync(con)
 
 def upsert(con: sqlite3.Connection, meta: dict):
     # Retain manually adjusted categories, source and license on re-scan.

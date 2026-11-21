@@ -13,3 +13,8 @@ private/auth-v2-ready.tmp
 private/drive-v3-ready
 private/drive-v3-ready.tmp
 private/drive-v3-migrate.lock
+
+# API schema migration runtime state (private)
+private/api-v1-ready
+private/api-v1-ready.tmp
+private/api-v1-migrate.lock

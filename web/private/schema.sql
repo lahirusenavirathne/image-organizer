@@ -68,3 +68,26 @@ CREATE TABLE IF NOT EXISTS folders (
   KEY idx_folder_parent (parent_id),
   KEY idx_folder_deleted (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- API v1 tables. Existing installs get these through migrate_api.php.
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  label VARCHAR(80) NOT NULL,
+  scope ENUM('read','write') NOT NULL,
+  auth_version INT UNSIGNED NOT NULL,
+  expires_at DATETIME NOT NULL,
+  revoked_at DATETIME NULL,
+  last_used_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_api_token_user (user_id),
+  KEY idx_api_token_expiry (expires_at),
+  CONSTRAINT fk_api_token_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS api_rate_limits (
+  token_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  hits INT UNSIGNED NOT NULL DEFAULT 0,
+  window_started DATETIME NOT NULL,
+  CONSTRAINT fk_api_rate_token FOREIGN KEY (token_id) REFERENCES api_tokens(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -31,4 +31,5 @@ function e(string $s):string{return htmlspecialchars($s,ENT_QUOTES|ENT_SUBSTITUT
 <label>New password<input name="new_password" type="password" minlength="14" maxlength="72" autocomplete="new-password" aria-describedby="password-help" required></label>
 <label>Confirm new password<input name="confirm_password" type="password" minlength="14" maxlength="72" autocomplete="new-password" required></label>
 <button class="button primary" type="submit">Update password</button></form>
+<p><a href="api-tokens.php">Manage API tokens</a></p>
 <p><a href="index.php">← Back to photo library</a></p></main></body></html>

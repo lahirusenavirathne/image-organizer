@@ -1,3 +1,32 @@
+## v0.5.0 — Windows photo transfer API safety
+
+On top of v0.4 API v1, the server adds a SHA-256 preflight endpoint and an
+idempotent upload guard, allowing the Windows rc6 companion to retry complete
+photographs after interruptions. This is **manual one-way transfer**, not automatic
+bidirectional sync. See `API_V1.md` for the exact request/response contract.
+
+Deploy to a separate staging DreamHost site first and run the additive v0.3
+and v0.4 migrations there before creating a write token. There is no v0.5
+schema migration. Existing browser uploads remain unchanged.
+
+---
+
+## Versioned API v1 - web-0.4.0-api1 (staging only)
+
+An authenticated JSON REST API has been added for future Windows desktop integration.
+It lives at `public/api/v1/index.php` and requires revocable Bearer tokens,
+created after sign-in at `public/api-tokens.php`. No secret is ever exposed in
+GitHub. Role enforcement and private image storage remain in force.
+
+**Do not deploy the API changes on production before a staging database test.**
+First deploy the web v0.3 file manager, then run
+`/usr/local/php84/bin/php web/bin/migrate_api.php` from the repository root
+(adjust the PHP path to your DreamHost version).
+
+See **[`API_V1.md`](API_V1.md)** for supported routes, authorization, migration,
+usage examples, privacy and regression tests. Tokens are intentionally not
+accepted in URLs; permanent deletion and automatic sync are not exposed.
+
 # Web v0.3 — Drive-style photo file manager
 
 **Next upgrade after web v0.2 authentication:** folder hierarchy, rename/move/copy files, browser folder uploads, grid/list view, sorting, Trash/restore, and small original-photo ZIP downloads. Existing photo originals and MySQL records are preserved by an additive schema migration. **Back up before updating and test on staging.** See [FILE_MANAGER_DEPLOY.md](FILE_MANAGER_DEPLOY.md) for deployment steps, role permissions, limits and the complete pilot checklist. This remains a photo manager, not an unrestricted file-storage service.

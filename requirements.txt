@@ -2,3 +2,4 @@ PySide6>=6.8,<7
 Pillow>=11,<13
 numpy>=2,<3
 opencv-python>=4.10,<5
+keyring>=25,<27  # Stores web API token in Windows Credential Manager

@@ -2,8 +2,10 @@
 from __future__ import annotations
 import hashlib
 import json
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Callable
+from . import web_sync
 from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
 from PySide6.QtGui import QIcon, QPixmap, QImage, QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -168,6 +170,79 @@ class SimilarityDialog(QDialog):
         return self.results[row] if 0<=row<len(self.results) else None
 
 
+class WebSyncDialog(QDialog):
+    """Explicit device connection; a token never enters the photo database."""
+    def __init__(self, endpoint='', token='', folder_id=0, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Connect to Guia Lanka Web Photo Manager')
+        self.setMinimumWidth(540)
+        layout=QVBoxLayout(self)
+        lead=QLabel('Manual one-way transfer: Windows → DreamHost.\n'
+                    'No remote deletions, replacement, or automatic background synchronization.')
+        lead.setWordWrap(True)
+        layout.addWidget(lead)
+        form=QFormLayout()
+        self.site=QLineEdit(endpoint or 'https://photos.guialankatours.com')
+        self.site.setPlaceholderText('https://photos.guialankatours.com')
+        self.site.setToolTip('The HTTPS origin hosting your web photo manager')
+        self.initial_site=self.site.text()
+        self.site.textChanged.connect(self.clear_token_when_host_changes)
+        form.addRow('Web app address',self.site)
+        self.token=QLineEdit(token)
+        self.token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.token.setPlaceholderText('glpm_v1_...  (create a write token on the web app)')
+        form.addRow('Write API token',self.token)
+        self.load_saved=QPushButton('Load saved token for this website')
+        self.load_saved.clicked.connect(self.restore_token)
+        form.addRow('',self.load_saved)
+        self.remember=QCheckBox('Remember in Windows Credential Manager (recommended)')
+        self.remember.setChecked(bool(token))
+        form.addRow('',self.remember)
+        self.folder=QSpinBox()
+        self.folder.setRange(0,2147483647)
+        self.folder.setValue(folder_id)
+        self.folder.setToolTip('0 = the root My Drive folder; numeric IDs refer to existing web folders')
+        form.addRow('Web folder ID (0 = root)',self.folder)
+        layout.addLayout(form)
+        explanation=QLabel('Create a read/write token in Web → Account → API tokens. '
+                           'Each click sends at most 20 selected photos. Interrupted batches '
+                           'can be resumed later, one whole photograph at a time. '
+                           'If a different photo uses the same filename, the app skips it for review.')
+        explanation.setWordWrap(True)
+        explanation.setObjectName('Subtle')
+        layout.addWidget(explanation)
+        buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                 QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText('Continue')
+        buttons.accepted.connect(self.validate_and_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def clear_token_when_host_changes(self):
+        # Never carry a secret from the original host into an edited destination.
+        old=urlsplit(self.initial_site).netloc.lower()
+        new=urlsplit(self.site.text()).netloc.lower()
+        if new!=old:
+            self.token.clear()
+            self.remember.setChecked(False)
+
+    def restore_token(self):
+        try:
+            secret=web_sync.saved_token(self.site.text())
+            if not secret: raise ValueError('No stored token for this website.')
+            self.token.setText(secret)
+        except ValueError as exc:
+            QMessageBox.information(self,'Saved API token',str(exc))
+
+    def validate_and_accept(self):
+        try:
+            web_sync.api_url(self.site.text())
+            web_sync.validate_token(self.token.text())
+            self.accept()
+        except ValueError as exc:
+            QMessageBox.warning(self,'Connection settings',str(exc))
+
+
 class Window(QMainWindow):
     def __init__(self,app_dir:Path):
         super().__init__()
@@ -186,6 +261,7 @@ class Window(QMainWindow):
         self.visible_rows={}
         self.current_id=None
         self.task=None
+        self.web_sync_session_token=''
         self.action_buttons=[]
         self.setWindowTitle('Guia Lanka Photo Manager  |  Photo Library')
         self.resize(1500,930)
@@ -608,6 +684,12 @@ class Window(QMainWindow):
         entry('Remove trashed folder from catalog', self.purge_drive_folder)
         entry('Save untouched originals to folder', self.download_originals)
         self.more_menu.addSeparator()
+        self.more_menu.addSection('DREAMHOST WEB API — MANUAL TRANSFER')
+        entry('Test web API connection', self.test_web_connection)
+        entry('Upload selected photos to web (max 20)', self.sync_web_selected)
+        entry('Resume failed/interrupted web uploads', self.resume_web_uploads)
+        entry('Forget stored web API token', self.forget_web_token)
+        self.more_menu.addSeparator()
         self.more_menu.addSection('ADVANCED FILE OPERATIONS')
         entry('Review and move selected photos', self.move_selected)
         entry('Undo last move batch', self.undo_moves)
@@ -888,6 +970,96 @@ class Window(QMainWindow):
             set_rights(con, self.current_id, self.rights_status.currentText())
         self.status.setText('Reviewed metadata saved. Manual tags are protected from future AI changes.')
         self.load_page()
+
+    def _web_settings_path(self):
+        return self.app_dir/'web_connection.json'
+
+    def _web_settings(self):
+        try:
+            data=json.loads(self._web_settings_path().read_text(encoding='utf-8'))
+            return {'endpoint':str(data.get('endpoint','https://photos.guialankatours.com')),
+                    'folder_id':max(0,int(data.get('folder_id',0)))}
+        except (OSError,ValueError,TypeError):
+            return {'endpoint':'https://photos.guialankatours.com','folder_id':0}
+
+    def _web_client_settings(self):
+        settings=self._web_settings()
+        token=self.web_sync_session_token or web_sync.saved_token(settings['endpoint'])
+        dialog=WebSyncDialog(settings['endpoint'],token,settings['folder_id'],self)
+        if dialog.exec()!=QDialog.DialogCode.Accepted:return None
+        endpoint=web_sync.api_url(dialog.site.text())
+        token=web_sync.validate_token(dialog.token.text())
+        target=int(dialog.folder.value())
+        # Config holds no secrets. Credentials are stored only on explicit consent.
+        config=json.dumps({'endpoint':endpoint,'folder_id':target},indent=2)
+        path=self._web_settings_path();temp=path.with_suffix('.tmp')
+        temp.write_text(config,encoding='utf-8');temp.replace(path)
+        if dialog.remember.isChecked():
+            try:web_sync.remember_token(endpoint,token)
+            except web_sync.SyncError as exc:
+                QMessageBox.warning(self,'Secure token storage',str(exc)+'\nYou can still use this token until the app closes.')
+        self.web_sync_session_token=token
+        return endpoint,token,target
+
+    def test_web_connection(self):
+        settings=self._web_client_settings()
+        if settings is None:return
+        endpoint,token,_=settings
+        def finished(result):
+            QMessageBox.information(self,'Web API connection successful',
+                f"Signed in as: {result.get('email','')}\n"
+                f"Role: {result.get('role','')}  |  Token scope: {result.get('scope','')}\n"
+                'This confirms API access only; no photos were transferred.')
+        self.task_start(lambda progress:web_sync.ApiClient(endpoint,token).me(),finished)
+
+    def sync_web_selected(self):
+        ids=self.selected_ids()
+        if not ids:return
+        if len(ids)>20:
+            QMessageBox.warning(self,'Batch limit','Select at most 20 photographs at a time on DreamHost shared hosting.')
+            return
+        settings=self._web_client_settings()
+        if settings is None:return
+        endpoint,token,folder_id=settings
+        if QMessageBox.question(self,'Upload selected photographs',
+                f'Upload up to {len(ids)} photographs to {web_sync.host_origin(endpoint)}?\n'
+                'The server checks SHA-256 hashes and filenames first. '
+                'Local originals will not be moved or deleted.\n\n'
+                'A manual confirmation is required for each batch.')!=QMessageBox.StandardButton.Yes:
+            return
+        self._start_web_sync(endpoint,token,folder_id,ids)
+
+    def resume_web_uploads(self):
+        settings=self._web_client_settings()
+        if settings is None:return
+        endpoint,token,folder_id=settings
+        self._start_web_sync(endpoint,token,folder_id,None)
+
+    def _start_web_sync(self,endpoint,token,folder_id,ids):
+        def work(progress):
+            client=web_sync.ApiClient(endpoint,token)
+            me=client.me()
+            if me.get('scope')!='write' or me.get('role') not in ('editor','admin'):
+                raise web_sync.SyncError('You need a write-scoped token belonging to an Editor or Admin.','forbidden')
+            return web_sync.upload_batch(self.db_path,client,selected_ids=ids,folder_id=folder_id,progress=progress)
+        def finish(result):
+            message=('Uploaded: {uploaded}\nAlready on web: {already_on_web}\n'
+                     'Filename conflicts: {conflicts}\nFailed: {failed}\nSkipped: {skipped}').format(**result)
+            if result['examples']:message+='\n\n'+ '\n'.join(result['examples'])
+            message+='\n\nOnly local copies are retained; no cloud files were deleted or overwritten.'
+            QMessageBox.information(self,'Web transfer completed',message)
+            self.status.setText('Web transfer finished — '+str(result['uploaded'])+' uploaded')
+        self.task_start(work,finish)
+
+    def forget_web_token(self):
+        settings=self._web_settings()
+        if QMessageBox.question(self,'Forget stored web API token',
+                'Remove this website API token from Windows Credential Manager?\n'
+                'You can also revoke it immediately in the web app.')!=QMessageBox.StandardButton.Yes:
+            return
+        web_sync.forget_token(settings['endpoint'])
+        self.web_sync_session_token=''
+        self.status.setText('Saved web API token removed from this device.')
 
     def selected_ids(self):
         ids=[it.data(Qt.ItemDataRole.UserRole) for it in self.list.selectedItems()]
