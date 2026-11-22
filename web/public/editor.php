@@ -29,7 +29,7 @@ header('Cache-Control: no-store');
 <meta name="csrf-token" content="<?=h(csrf_token())?>">
 <title>Photo Studio · <?=h((string)$photo['original_name'])?> · Guia Lanka</title>
 <link rel="stylesheet" href="assets/style.css?v=web-0.7.2">
-<link rel="stylesheet" href="assets/editor.css?v=web-0.7.5">
+<link rel="stylesheet" href="assets/editor.css?v=web-0.8.0-phase1a">
 </head>
 <body class="editor-page">
 <div class="editor-shell" id="photo-editor" data-photo-id="<?=$id?>" data-revision="<?=h((string)$saved['version'])?>" data-recipe="<?=h(json_encode($saved['recipe'],JSON_INVALID_UTF8_SUBSTITUTE))?>">
@@ -40,6 +40,8 @@ header('Cache-Control: no-store');
   <div class="studio-document"><span class="studio-document-label">NOW EDITING</span><span class="studio-document-name" title="<?=h((string)$photo['original_name'])?>"><?=h((string)$photo['original_name'])?></span></div>
   <div class="studio-header-actions">
     <span id="editor-save-state" class="studio-save-state" role="status" aria-live="polite"><span class="studio-state-dot" aria-hidden="true"></span> Ready to edit</span>
+    <button id="editor-undo" type="button" class="studio-button studio-button-muted" disabled title="Undo last edit (Ctrl+Z)">↶ Undo</button>
+    <button id="editor-redo" type="button" class="studio-button studio-button-muted" disabled title="Redo last edit (Ctrl+Y)">↷ Redo</button>
     <button id="editor-save" type="button" class="studio-button studio-button-outline">Save adjustments</button>
     <button id="editor-top-export" type="button" class="studio-button studio-button-primary">Export image <span aria-hidden="true">↗</span></button>
   </div>
@@ -58,18 +60,24 @@ header('Cache-Control: no-store');
     <div class="studio-canvas-head"><div><span class="studio-eyebrow">PREVIEW CANVAS</span><h1>Photo editor</h1></div><span class="studio-canvas-hint">Non-destructive editing <span aria-hidden="true">·</span> Original protected</span></div>
     <div class="editor-image-holder">
       <div class="studio-image-backdrop" aria-hidden="true"></div>
-      <img id="editor-preview" alt="Current adjusted photo preview" fetchpriority="high">
+      <div class="editor-image-stage" id="editor-image-stage" aria-label="Photo preview. When zoomed, drag the image to pan.">
+        <img id="editor-preview" alt="Current adjusted photo preview" fetchpriority="high">
+        <img id="editor-before-image" alt="Original tones with the same crop and rotation" hidden>
+        <div id="editor-compare-divider" hidden aria-hidden="true"></div>
+      </div>
       <div id="editor-loading" role="status" aria-live="polite">Preparing preview…</div>
     </div>
     <div class="studio-canvas-foot">
-      <label class="studio-before-toggle" for="editor-before"><input type="checkbox" id="editor-before"><span aria-hidden="true" class="studio-toggle-track"></span><span>Show original</span></label>
+      <label class="studio-before-toggle" for="editor-before"><input type="checkbox" id="editor-before"><span aria-hidden="true" class="studio-toggle-track"></span><span>Compare before/after</span></label>
+      <label id="editor-compare-control" class="studio-compare-control" hidden>Before <input type="range" id="editor-compare-position" min="0" max="100" value="50" aria-label="Before and after split position"> After</label>
+      <div class="studio-zoom-controls" role="group" aria-label="Photo zoom and pan controls"><button type="button" id="editor-zoom-out" aria-label="Zoom out">−</button><output id="editor-zoom-level" aria-live="off">Fit</output><button type="button" id="editor-zoom-in" aria-label="Zoom in">+</button><button type="button" id="editor-zoom-fit">Fit</button></div>
       <span class="studio-foot-info">Preview generated privately on DreamHost</span>
       <span class="studio-foot-format">Photo #<?=$id?></span>
     </div>
     <div class="studio-canvas-status" id="editor-preview-help">Adjust the controls to preview changes. Exporting always creates a new file.</div>
   </main>
   <aside class="studio-inspector" aria-label="Photo adjustments">
-    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.7.5</span></div>
+    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.8.0 · PHASE 1</span></div>
     <form id="editor-form" class="editor-controls">
       <details id="panel-light" class="studio-section" open>
         <summary><span><span class="studio-section-symbol" aria-hidden="true">☼</span> Light</span><span class="studio-section-summary">Tone &amp; exposure</span></summary>
@@ -102,7 +110,17 @@ header('Cache-Control: no-store');
           <p class="studio-section-note">Keep sharpening subtle for natural wildlife textures.</p>
         </div>
       </details>
-      <div class="studio-section-actions"><button type="button" class="studio-button studio-button-muted" id="editor-reset">↺ Reset all adjustments</button></div>
+      <div class="studio-section-actions">
+        <div class="studio-preset-panel" aria-labelledby="editor-presets-heading">
+          <h3 id="editor-presets-heading">Custom editing presets</h3>
+          <label>Apply saved preset <select id="editor-preset-select"><option value="">Choose a preset</option></select></label>
+          <div class="studio-preset-actions"><button type="button" class="studio-button studio-button-muted" id="editor-apply-preset">Apply</button><button type="button" class="studio-button studio-button-muted" id="editor-remove-preset">Delete</button></div>
+          <label>New preset name <input type="text" id="editor-preset-name" maxlength="32" placeholder="e.g. Wildlife natural"></label>
+          <button type="button" class="studio-button studio-button-outline" id="editor-store-preset">Save current adjustments as preset</button>
+          <p class="studio-section-note">Stored in this browser only. Presets do not overwrite photos.</p>
+        </div>
+        <button type="button" class="studio-button studio-button-muted" id="editor-reset">↺ Reset all adjustments</button>
+      </div>
       <section id="panel-export" class="studio-export" aria-labelledby="export-section-title">
         <span class="studio-eyebrow">FINISH &amp; DOWNLOAD</span><h2 id="export-section-title">Export edited copy</h2>
         <p class="studio-section-note">Original stays in your photo library. Choose both dimensions for an exact center crop.</p>
@@ -111,6 +129,10 @@ header('Cache-Control: no-store');
           <label>Height (px)<input name="height" type="number" min="0" max="2500" value="300" required></label>
         </div>
         <label class="studio-export-format">File format<select name="format"><option value="webp">WebP · Web optimized</option><option value="jpg">JPEG</option><option value="png">PNG</option></select></label>
+        <label class="studio-export-quality">JPEG / WebP quality <output id="editor-quality-label" for="editor-quality">85%</output>
+          <input id="editor-quality" name="quality" type="range" min="40" max="100" value="85">
+        </label>
+        <p class="studio-section-note" id="editor-quality-hint">Quality does not affect lossless PNG.</p>
         <label class="studio-copy-name" for="editor-copy-name">Save copy with filename
           <input id="editor-copy-name" name="copy_name" type="text" minlength="1" maxlength="180" required
                  value="<?=h(editor_copy_suggested_name((string)$photo['original_name']))?>"
@@ -128,5 +150,5 @@ header('Cache-Control: no-store');
   </aside>
 </div>
 </div>
-<script src="assets/editor.js?v=web-0.7.5" defer></script>
+<script src="assets/editor.js?v=web-0.8.0-phase1a" defer></script>
 </body></html>

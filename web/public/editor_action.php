@@ -14,18 +14,24 @@ try {
         $version=editor_save($db,$id,$recipe,$expected,(int)$me['id']);
         respond(['success'=>true,'version'=>$version]);
     }
-    if(!in_array($action,['preview','export','save_copy'],true))throw new InvalidArgumentException('Unsupported editor action');
-    $preview=$action==='preview';
+    if(!in_array($action,['preview','preview_before','export','save_copy'],true))throw new InvalidArgumentException('Unsupported editor action');
+    $preview=in_array($action,['preview','preview_before'],true);
     $format=$preview?'jpg':(string)($_POST['format']??'webp');
     if(!in_array($format,['jpg','webp','png'],true))throw new InvalidArgumentException('Unsupported export format');
     $width=$preview?0:filter_var($_POST['width']??null,FILTER_VALIDATE_INT);
     $height=$preview?0:filter_var($_POST['height']??null,FILTER_VALIDATE_INT);
     if($width===false||$height===false)throw new InvalidArgumentException('Invalid export dimensions');
     if($action==='save_copy')editor_copy_filename($_POST['copy_name']??null,$format);
+    $quality=$preview?85:editor_quality($_POST['quality']??86);
     $original=open_image(photo_path($photo),$photo['mime']);
+    if($action==='preview_before'){
+        // Compare the same geometry, but remove tonal/color adjustments.
+        // An aligned overlay is meaningful even if the image was cropped/rotated.
+        $recipe=array_merge(editor_defaults(),['rotate'=>$recipe['rotate'],'crop'=>$recipe['crop']]);
+    }
     $image=editor_render($original,$recipe,$width,$height,$preview);
     if($action==='save_copy'){
-        $result=editor_save_as_copy($db,$photo,$image,$format,(string)($_POST['copy_name']??''));
+        $result=editor_save_as_copy($db,$photo,$image,$format,(string)($_POST['copy_name']??''),$quality);
         imagedestroy($image);
         respond(['success'=>true,'id'=>$result['id'],'name'=>$result['name'],'folder_id'=>$result['folder_id']]);
     }
@@ -33,7 +39,7 @@ try {
     header('Cache-Control: private, no-store');header('X-Content-Type-Options: nosniff');
     if(!$preview)header('Content-Disposition: attachment; filename="photo-'.(int)$id.'-edited.'.$format.'"');
     else header('Content-Disposition: inline');
-    $ok=match($format){'jpg'=>imagejpeg($image,null,83),'webp'=>imagewebp($image,null,86),'png'=>imagepng($image)};
+    $ok=match($format){'jpg'=>imagejpeg($image,null,$quality),'webp'=>imagewebp($image,null,$quality),'png'=>imagepng($image)};
     if(!$ok)error_log('GLPM edit render failed for photo id '.(int)$id);
     exit;
 }catch(DomainException $e){respond(['error'=>$e->getMessage()],409);

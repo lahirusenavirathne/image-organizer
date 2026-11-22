@@ -1,3 +1,13 @@
+## web-0.8.0-phase1a — Photo Studio Phase 1, first milestone
+
+- Undo/Redo with keyboard shortcuts and grouped slider changes.
+- Zoom levels and drag-to-pan view controls.
+- Side-by-side-aligned before/after split comparison; original tones with same geometry.
+- Browser-local named custom editing presets (max 10).
+- JPEG/WebP export quality (40–100), also applied to Save as copy; PNG remains lossless.
+- Interactive crop and straighten reserved for the next Phase 1 increment.
+- Original files and saved recipe schema unchanged. No database migration.
+
 ## web-0.7.5 — Save as copy in Photo Studio
 
 - Add Save as copy alongside Download edited copy. Both respect the current crop, adjustments, dimensions and output format.

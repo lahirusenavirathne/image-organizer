@@ -11,8 +11,8 @@ $assertions=[
   'Original preview control'=>str_contains($editor,'id="editor-before"'),
   'Editor save/export functional controls'=>str_contains($editor,'id="editor-save"') && str_contains($editor,'id="editor-export"'),
   'All recipe sliders'=>!array_filter(['exposure','contrast','highlights','shadows','saturation','warmth','sharpness'],fn($key)=>!str_contains($editor,"'".$key."'=>")&&!str_contains($editor,'name="'.$key.'"')),
-  'Script cache version'=>str_contains($editor,'assets/editor.js?v=web-0.7.5'),
-  'Style cache version'=>str_contains($editor,'assets/editor.css?v=web-0.7.5'),
+  'Script cache version'=>str_contains($editor,'assets/editor.js?v=web-0.8.0-phase1a'),
+  'Style cache version'=>str_contains($editor,'assets/editor.css?v=web-0.8.0-phase1a'),
   'Responsive CSS'=>str_contains($css,'@media (max-width:630px)'),
   'No photo source overwrite JS'=>!str_contains($js,'photo_path('),
 ];

@@ -160,6 +160,7 @@ function editor_render(GdImage $original,array $input,int $targetW=0,int $target
     return $im;
 }
 
+
 /** Build a UTF-8-safe default caption without creating paths or changing existing records. */
 function editor_copy_suggested_name(string $originalName): string {
     $stem=pathinfo($originalName,PATHINFO_FILENAME);
@@ -190,15 +191,24 @@ function editor_copy_filename(mixed $requested, string $format): string {
     return $name.'.'.$format;
 }
 
-function editor_save_as_copy(PDO $db, array $source, GdImage $rendered, string $format, string $requestedName): array {
+function editor_quality(mixed $raw): int {
+    // Quality applies to JPEG/WebP; PNG retains lossless compression.
+    if (!is_string($raw) && !is_int($raw)) throw new InvalidArgumentException('Choose an export quality');
+    $value=filter_var($raw,FILTER_VALIDATE_INT);
+    if ($value===false || $value<40 || $value>100) throw new InvalidArgumentException('Quality must be from 40 to 100');
+    return (int)$value;
+}
+
+function editor_save_as_copy(PDO $db, array $source, GdImage $rendered, string $format, string $requestedName, int $quality=86): array {
+    if ($quality<40 || $quality>100) throw new InvalidArgumentException('Invalid copy quality');
     $filename=editor_copy_filename($requestedName,$format);
     ensure_dirs();
     $temp=private_path('tmp/'.bin2hex(random_bytes(20)).'.'.$format);
     $copied=null;
     try {
         $ok=match($format) {
-            'webp'=>function_exists('imagewebp') && imagewebp($rendered,$temp,86),
-            'jpg'=>imagejpeg($rendered,$temp,86),
+            'webp'=>function_exists('imagewebp') && imagewebp($rendered,$temp,$quality),
+            'jpg'=>imagejpeg($rendered,$temp,$quality),
             'png'=>imagepng($rendered,$temp,6),
         };
         if (!$ok) throw new RuntimeException('Unable to encode the edited copy on this server');

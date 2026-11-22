@@ -162,3 +162,30 @@
 .studio-copy-buttons{display:grid;grid-template-columns:1fr;gap:9px;margin:14px 0}
 .studio-copy-buttons .studio-button{width:100%;min-width:0;white-space:normal;text-align:center}
 .studio-copy-success{display:block;margin-top:8px;color:#d3eec7;text-decoration:underline;text-underline-offset:3px}
+
+/* Phase 1A: preview interactions, before/after, local presets and quality. */
+.editor-image-stage{position:relative;inset:auto;flex:1 1 auto;width:100%;height:100%;min-width:0;min-height:0;display:grid;place-items:center;transform-origin:center center;touch-action:auto;user-select:none;-webkit-user-select:none}
+.editor-image-stage.zoomed{cursor:grab;touch-action:none}
+.editor-image-stage.zoomed:active{cursor:grabbing}
+.editor-image-holder .editor-image-stage img{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;pointer-events:none;box-shadow:none}
+#editor-before-image{z-index:2;clip-path:inset(0 50% 0 0)}
+#editor-before-image[hidden],#editor-compare-divider[hidden]{display:none}
+#editor-compare-divider{position:absolute;top:0;bottom:0;z-index:3;width:2px;background:#f7fff0;box-shadow:0 0 10px #101b15;pointer-events:none}
+.studio-compare-control{display:flex;align-items:center;gap:6px;font-size:11px;white-space:nowrap}
+.studio-compare-control[hidden]{display:none}
+.studio-compare-control input{width:clamp(65px,9vw,160px);accent-color:var(--studio-bright)}
+.studio-zoom-controls{display:flex;align-items:center;gap:5px;margin-inline-start:auto}
+.studio-zoom-controls button{border:1px solid #455849;background:#25352a;color:#e5efe2;padding:4px 7px;border-radius:7px;min-height:29px;min-width:27px}
+.studio-zoom-controls button:disabled{opacity:.35}
+.studio-zoom-controls output{font-size:11px;color:#bdd1bb;min-width:38px;text-align:center}
+.studio-preset-panel{display:grid;gap:10px;padding:0 0 17px}
+.studio-preset-panel h3{margin:0;font-size:13px;color:#d9e9d5}
+.studio-preset-panel label{display:grid;gap:5px;font-size:12px}
+.studio-preset-panel select,.studio-preset-panel input{width:100%;min-width:0;border:1px solid #4b5d50;background:#26342b;color:#f3f8ef;border-radius:8px;padding:9px 10px;min-height:39px}
+.studio-preset-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.studio-preset-panel button{white-space:normal;min-height:39px}
+.studio-export-quality{display:block;margin:0 0 15px;font-size:12px}
+.studio-export-quality output{float:right;color:#d5eec9}
+.studio-export-quality input{display:block;width:100%;accent-color:var(--studio-bright);margin:10px 0 0}
+.editor-page .studio-header-actions{flex-wrap:wrap}
+@media(max-width:630px){.studio-compare-control{order:3;width:100%;justify-content:center}.studio-zoom-controls{margin-inline-start:auto}.studio-canvas-foot{flex-wrap:wrap;gap:10px}}
