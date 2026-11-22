@@ -1,0 +1,100 @@
+'use strict';
+(() => {
+  const root = document.getElementById('photo-editor');
+  if (!root) return;
+  const form = document.getElementById('editor-form');
+  const picture = document.getElementById('editor-preview');
+  const message = document.getElementById('editor-status');
+  const loading = document.getElementById('editor-loading');
+  const before = document.getElementById('editor-before');
+  const photoId = Number(root.dataset.photoId);
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  let revision = Number(root.dataset.revision);
+  let saved;
+  try { saved = JSON.parse(root.dataset.recipe || '{}'); }
+  catch { saved = {}; }
+  const baseline = {rotate:0,crop:'original',exposure:0,contrast:0,highlights:0,shadows:0,saturation:0,warmth:0,sharpness:0};
+  let timer = null, controller = null, imageUrl = null, seq = 0;
+  const inputs = [...form.querySelectorAll('[name]')];
+  const field = name => form.elements.namedItem(name);
+  const status = (text, error = false) => { message.textContent = text; message.classList.toggle('error', error); };
+  function recipe() {
+    const r = { ...baseline, rotate:Number(field('rotate').value), crop:field('crop').value };
+    for (const key of ['exposure','contrast','highlights','shadows','saturation','warmth','sharpness'])
+      r[key] = Number(field(key).value);
+    return r;
+  }
+  function updateLabels() {
+    for (const key of ['exposure','contrast','highlights','shadows','saturation','warmth','sharpness'])
+      document.getElementById('edit-'+key+'-value').textContent=String(field(key).value);
+  }
+  function loadForm(values) {
+    const current={...baseline,...values};
+    for(const key of Object.keys(baseline))field(key).value=String(current[key]);
+    updateLabels();queuePreview();
+  }
+  async function send(action, params, abortSignal=null) {
+    const data = new FormData();data.set('action', action);data.set('id', String(photoId));
+    data.set('recipe', JSON.stringify(params));
+    data.set('csrf', csrf);
+    if(action==='save')data.set('version',String(revision));
+    if(action==='export'){
+      data.set('width',field('width').value);data.set('height',field('height').value);
+      data.set('format',field('format').value);
+    }
+    const res=await fetch('editor_action.php',{method:'POST',body:data,credentials:'same-origin',signal:abortSignal,cache:'no-store'});
+    if(!res.ok){const error=await res.json().catch(()=>null);throw new Error(error?.error||`Server returned HTTP ${res.status}`);}
+    return res;
+  }
+  function queuePreview(){clearTimeout(timer);timer=setTimeout(refresh,420);}
+  async function refresh() {
+    if(controller) controller.abort();
+    controller=new AbortController();const local=++seq;
+    loading.hidden=false;
+    try {
+      const r=before.checked?baseline:recipe();
+      const res=await send('preview',r,controller.signal);
+      const blob=await res.blob();
+      if(local!==seq)return;
+      const next=URL.createObjectURL(blob),old=imageUrl;
+      imageUrl=next;picture.onload=()=>{if(old)URL.revokeObjectURL(old);};
+      picture.src=next;loading.hidden=true;
+    } catch(error) {
+      if(error.name==='AbortError')return;
+      loading.hidden=true;status('Preview error: '+error.message,true);
+    }
+  }
+  async function save(){
+    try {const res=await send('save',recipe());const data=await res.json();
+      revision=data.version;root.dataset.revision=String(revision);status('Adjustments saved. Original photograph unchanged.');
+    } catch(error){status('Save failed: '+error.message,true);}
+  }
+  async function exportCopy() {
+    if(!form.reportValidity())return;
+    const width=Number(field('width').value),height=Number(field('height').value);
+    if(width<0||height<0||(width===0&&height===0)||width>2500||height>2500||width*height>2500000){
+      status('Specify an image no larger than 2.5 megapixels and 2500 pixels per side.',true);return;
+    }
+    const button=document.getElementById('editor-export');button.disabled=true;
+    status('Preparing your new edited file…');
+    try{
+      const res=await send('export',recipe());const blob=await res.blob();
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=url;a.download=`photo-${photoId}-edited.${field('format').value}`;
+      a.style.display='none';document.body.append(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+      status('Edited copy downloaded. The original stays unchanged.');
+    }catch(error){status('Export failed: '+error.message,true);}
+    finally{button.disabled=false;}
+  }
+  for(const el of inputs){
+    if(!Object.prototype.hasOwnProperty.call(baseline,el.name))continue;
+    el.addEventListener(el.type==='range'?'input':'change',()=>{updateLabels();if(!before.checked)queuePreview();});
+  }
+  before.addEventListener('change',queuePreview);
+  document.getElementById('editor-save').addEventListener('click',save);
+  document.getElementById('editor-export').addEventListener('click',exportCopy);
+  document.getElementById('editor-reset').addEventListener('click',()=>{before.checked=false;loadForm(baseline);status('Sliders reset. Click Save adjustments to update the saved recipe.');});
+  window.addEventListener('pagehide',()=>{if(controller)controller.abort();if(imageUrl)URL.revokeObjectURL(imageUrl);});
+  loadForm(saved);
+})();

@@ -91,3 +91,13 @@ CREATE TABLE IF NOT EXISTS api_rate_limits (
   window_started DATETIME NOT NULL,
   CONSTRAINT fk_api_rate_token FOREIGN KEY (token_id) REFERENCES api_tokens(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Non-destructive photo editor v0.7: installed automatically on first editor visit or via bin/migrate_editor.php.
+CREATE TABLE IF NOT EXISTS photo_edit_recipes (
+    photo_id BIGINT UNSIGNED PRIMARY KEY,
+    recipe_json TEXT NOT NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
+    updated_by BIGINT UNSIGNED NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT fk_photo_edit_photo FOREIGN KEY(photo_id) REFERENCES photos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -89,6 +89,7 @@ def sync_selected_folders(db_path: Path, client: web_sync.ApiClient, *,
         raise web_sync.SyncError('A write token from an Editor or Admin is required.', 'forbidden')
     resolved = {(): remote_parent_id}
     remote_created = 0
+    folder_limit_hit = False
 
     def ensure_path(path: tuple[str, ...]) -> int:
         nonlocal remote_created
@@ -103,6 +104,8 @@ def sync_selected_folders(db_path: Path, client: web_sync.ApiClient, *,
         if matches:
             fid = int(matches[0]['id'])
         else:
+            if remote_created>=50:
+                raise web_sync.SyncError('Remote folder creation limit reached; continue next batch', 'folder_batch_limit')
             # Re-query after a lost create response: the remote folder may exist.
             try:
                 created = client.create_folder(name, parent)
@@ -122,11 +125,17 @@ def sync_selected_folders(db_path: Path, client: web_sync.ApiClient, *,
     stats = {'selected_folders':len(plan['roots']), 'in_scope_photos':plan['photo_count'],
              'attempted':0, 'uploaded':0, 'already_on_web':0, 'conflicts':0,
              'failed':0, 'skipped':0, 'previously_completed':0, 'previous_conflicts':0, 'examples':[],
-             'remote_folders_created':0, 'more_may_remain':False}
-    # Selected empty root folders still get a counterpart, but descendants with
-    # no photos aren't created until needed; this bounds work on shared hosting.
-    for root in plan['roots']:
-        ensure_path(root['path'])
+             'remote_folders_created':0, 'more_may_remain':False, 'folder_limit_hit':False}
+    # Create bounded portions of the COMPLETE selected tree, including empty
+    # descendants. Unselected ancestors are container-only shells.
+    for entry in sorted(plan['covered'].values(),key=lambda f:(len(f['path']),f['path'])):
+        try:
+            ensure_path(entry['path'])
+        except web_sync.SyncError as error:
+            if error.code!='folder_batch_limit':raise
+            folder_limit_hit=True
+            stats['more_may_remain']=True
+            break
     for photo in plan['photos']:
         folder = plan['covered'][int(photo['folder_id'])]
         # No work is done for unselected or trashed folders.
@@ -141,7 +150,10 @@ def sync_selected_folders(db_path: Path, client: web_sync.ApiClient, *,
             source_stat.st_size < 1 or source_stat.st_size > web_sync.MAX_UPLOAD):
             stats['skipped'] += 1
             continue  # Never let unsupported files block the next eligible batch.
-        remote_id = ensure_path(folder['path'])
+        if folder['path'] not in resolved:
+            stats['more_may_remain']=True
+            continue
+        remote_id = resolved[folder['path']]
         with db.connect(db_path) as con:
             web_sync.migrate(con)
             record = con.execute('''SELECT state,size_bytes,mtime_ns FROM web_sync_jobs
@@ -166,6 +178,7 @@ def sync_selected_folders(db_path: Path, client: web_sync.ApiClient, *,
         if batch['failed'] and any('access denied' in e.lower() for e in batch['examples']):
             break
     stats['remote_folders_created'] = remote_created
+    stats['folder_limit_hit']=folder_limit_hit
     return stats
 
 
@@ -262,7 +275,9 @@ def download_selected_folders(db_path: Path, client: web_sync.ApiClient, *,
                 try: _safe_windows_dir(from_name)
                 except ValueError:
                     result['download_skipped']+=1;continue
-                queue.append((int(child['id']), (*path,from_name)))
+                child_path=(*path,from_name)
+                ensure_local_path(child_path)  # preserve empty web subfolders too
+                queue.append((int(child['id']), child_path))
             with db.connect(db_path) as con:
                 row=con.execute('''SELECT next_page FROM web_sync_scan_pages WHERE
                     server_url=? AND remote_folder_id=?''',(client.endpoint,fid)).fetchone()
@@ -376,6 +391,12 @@ def sync_selected_folder_trees(db_path: Path, client: web_sync.ApiClient, *,
         received=download_selected_folders(db_path,client,selected_ids=selected_ids,
                                            remote_parent_id=remote_parent_id,
                                            limit=remaining,progress=progress)
-    return {**sent,**received,
-            'examples':(sent['examples']+received['examples'])[:8],
-            'more_may_remain':sent['more_may_remain'] or received['scan_limit_hit'] or remaining==0 or received['download_attempts']>=remaining}
+    # Metadata has its own bounded round-robin queue, so a large selected tree
+    # does not starve the later photos indefinitely. No unselected photo is eligible.
+    from .metadata_sync import sync_selected_metadata
+    metadata=sync_selected_metadata(db_path,client,selected_ids=selected_ids,
+                                        remote_parent_id=remote_parent_id,limit=10,progress=progress)
+    return {**sent,**received,**metadata,
+            'examples':(sent['examples']+received['examples']+metadata['metadata_examples'])[:8],
+            'more_may_remain':sent['more_may_remain'] or received['scan_limit_hit'] or remaining==0 or
+                              received['download_attempts']>=remaining or metadata['metadata_more']}

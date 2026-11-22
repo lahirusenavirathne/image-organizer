@@ -1,3 +1,16 @@
+## 1.0.0-rc9 — Non-destructive professional photo editor R1
+- Native PySide6 editor, full preview and before/after controls.
+- Color/tonal sliders, rotation, center crop, save recipe to SQLite, export edited copies.
+- Originals protected by exclusive output file creation. No edit-recipe sync yet.
+
+# v1.0.0-rc8 — selected-folder hierarchy and metadata
+
+- Recreates empty nested folders in both directions within explicitly selected trees.
+- Synchronizes matching original-image metadata by SHA-256, only into blank fields.
+- Protects reviewed tags and rights, reports conflicts, and never transmits private source paths.
+- Rotating bounded metadata checkpoint; legacy rc7 queues remain compatible.
+- No automatic deletion, folder rename propagation, or file overwrites.
+
 # v1.0.0-rc7 — Selected-folder web synchronization (Windows)
 
 - Added explicit multi-folder checkbox picker; the user chooses which local My Drive folders may transfer in both directions.

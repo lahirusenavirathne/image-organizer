@@ -1,3 +1,20 @@
+## Photo editor R1 — Web v0.7.0 (staging)
+
+Authenticated Editors/Admins can open **Edit photo** from the inspector. Browser sliders request small PHP GD previews; edits are stored as versioned JSON recipes in MySQL, without touching private originals. Download WebP/JPEG/PNG edited copies at exact preset dimensions. Live output is capped to 2.5 MP for shared hosting. Use `bin/migrate_editor.php` (or first authenticated editor load) for the additive schema and consult `PHOTO_EDITOR_DEPLOY.md`. Existing web API v1 and photo uploads are unchanged; edit recipes are **not yet synced** between desktop and web.
+
+---
+
+## v0.6.0 — selected-folder metadata API
+
+Adds `POST ?resource=sync&action=metadata_fill`, a write-token operation that
+safely populates only missing metadata on an exact-SHA-256 photo match, under
+one MySQL transaction. Reviewed tags and rights assertions remain protected;
+conflicting nonempty values are never overwritten. Windows Desktop rc8 handles
+selected-folder hierarchy reconciliation, including empty subfolders, and
+metadata reconciliation in both directions. No new web database migration.
+See `API_V1.md` for the endpoint contract. This is a staging candidate; back up
+MySQL and private originals before upgrading.
+
 ## v0.5.0 — Windows photo transfer API safety
 
 On top of v0.4 API v1, the server adds a SHA-256 preflight endpoint and an

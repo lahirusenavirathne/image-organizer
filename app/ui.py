@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Callable
 from . import web_sync, folder_sync
+from .editor_ui import PhotoEditorDialog
 from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
 from PySide6.QtGui import QIcon, QPixmap, QImage, QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -473,6 +474,7 @@ class Window(QMainWindow):
         toolbar_row.addWidget(self.filter_toggle)
         self.add_action(toolbar_row, 'AI tag', self.tag_selected)
         self.add_action(toolbar_row, 'Find similar', self.find_similar_selected)
+        self.add_action(toolbar_row, 'Edit photo', self.edit_selected_photo)
         self.add_action(toolbar_row, 'Export selected', self.export_selected, True)
         more = QToolButton()
         more.setText('More ▾')
@@ -736,6 +738,7 @@ class Window(QMainWindow):
         entry('Remove selected catalog records from Trash', self.purge_drive_photos)
         entry('Remove trashed folder from catalog', self.purge_drive_folder)
         entry('Save untouched originals to folder', self.download_originals)
+        entry('Edit selected photograph (non-destructive)', self.edit_selected_photo)
         self.more_menu.addSeparator()
         self.more_menu.addSection('DREAMHOST WEB API — SELECTED FOLDERS')
         entry('Test web API connection', self.test_web_connection)
@@ -1093,6 +1096,7 @@ class Window(QMainWindow):
                 +(f'\n...and {len(root_names)-12} more' if len(root_names)>12 else '')
                 +f'\n\n{plan["photo_count"]} eligible photos. Up to 20 per run.\n'
                 +'Unselected folders and root-level photos are excluded.\n'
+                +'Only missing photo metadata is filled, with conflicts kept for review.\n'
                 +'Existing files on either side will never be overwritten or deleted. Continue?') \
                 !=QMessageBox.StandardButton.Yes:return
         saved=self._web_settings()
@@ -1140,11 +1144,16 @@ class Window(QMainWindow):
                      'Downloaded from web: {downloaded}\n'
                      'Web download conflicts: {download_conflicts}\n'
                      'Failed downloads: {download_failed}\n'
-                     'New web folders: {remote_folders_created}').format(**result)
+                     'New web folders: {remote_folders_created}\n'
+                     'Metadata matches checked: {metadata_pairs}\n'
+                     'Metadata filled on web: {metadata_web_updated}\n'
+                     'Metadata filled on Windows: {metadata_local_updated}\n'
+                     'Metadata conflicts for review: {metadata_conflicts}\n'
+                     'Metadata failures: {metadata_failed}').format(**result)
             if result['more_may_remain']:
                 message+='\n\nMore selected-folder photos may remain. Use “Continue selected-folder sync” again.'
             if result['examples']:message+='\n\n'+'\n'.join(result['examples'])
-            message+='\n\nNo existing local or web originals were replaced or deleted.'
+            message+='\n\nExisting metadata is preserved; only empty fields are filled. No originals were replaced or deleted.'
             QMessageBox.information(self,'Selected-folder sync completed',message)
             self.status.setText('Selected-folder sync: '+str(result['uploaded'])+' uploaded')
         self.task_start(work,finish)
@@ -1659,6 +1668,17 @@ class Window(QMainWindow):
         self.reset_page()
         self.status.setText(f"Restored {result['restored']} files. Errors: {len(result['errors'])}")
         if result['errors']:QMessageBox.warning(self,'Undo warnings','\n'.join(result['errors']))
+
+    def edit_selected_photo(self):
+        ids=self.selected_ids()
+        if len(ids)!=1:
+            if ids: QMessageBox.information(self,'Edit one photograph','Select exactly one photograph to open the photo editor.')
+            return
+        try:
+            dlg=PhotoEditorDialog(self.db_path,int(ids[0]),self)
+            dlg.exec()
+        except Exception as exc:
+            QMessageBox.warning(self,'Photo editor unavailable',str(exc))
 
     def export_selected(self):
         ids=self.selected_ids()

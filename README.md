@@ -1,4 +1,38 @@
-## Selective two-way folder sync — Windows rc7 / DreamHost Web v0.5
+## Professional Photo Editor — R1 (Windows v1.0.0-rc9)
+
+Select one photograph and click **Edit photo** on the toolbar. Edit recipes are saved in local SQLite, never in the original image. Rotate, center crop (including 272:300), adjust exposure/contrast/highlights/shadows/saturation/warmth/sharpness, compare before/after, save adjustments, or export a new WebP/JPEG/PNG copy. Existing source files are never overwritten. Exact output dimensions are configurable. Source photo provenance remains separate from exported copies.
+
+See `PHOTO_EDITOR_DEPLOY.md` in the release bundle for backups, verification and limitations. **Edit recipes are not yet synchronized to the web**; use the editor on each platform separately. Cross-platform color rendering may differ slightly because Windows uses Pillow and DreamHost uses GD.
+
+---
+
+## Selected-folder hierarchy and metadata synchronization — Windows rc8 / Web v0.6
+
+The user must check local My Drive folders and explicitly confirm every run.
+Checked parents include child folders; unselected ancestors/siblings/root photos are
+excluded. Both directions now reconcile **empty nested folders** as well as photo
+files, in limited batches (maximum 50 new remote folders per click).
+
+The desktop compares the SHA-256 of each linked original before reading or
+changing metadata, verifies the current remote folder still matches the
+selected local path and fills **only missing values** in either library.
+Existing different values are counted as conflicts; human-reviewed tags and
+rights decisions are never overwritten. Fields: location, attraction, activity
+categories, source URL, photographer, copyright, license and explicit rights
+status. EXIF camera/date already come from original images; GPS, faces, absolute
+Windows file paths, AI review source and secrets are NOT synchronized.
+
+A write-scoped Editor/Admin token and **Web v0.6** (the `metadata_fill` API)
+are required. Upload/download remains additive, without deletion propagation,
+remote renames, background monitoring, or automatic content replacement. Older
+folder paths remain in place if a folder is renamed or moved; inspect and
+clean them up manually after backups. Large libraries need repeated confirmed
+runs; metadata checks rotate over linked photos in blocks of 10 each run.
+
+**Staging only:** Back up desktop SQLite and DreamHost's MySQL/private storage,
+then test with disposable photos before any production merge.
+
+## Previous release: selective two-way folder sync — Windows rc7 / DreamHost Web v0.5
 
 **Only local My Drive folders you check can synchronize.** Open **More → DreamHost Web API → Sync selected folders (Windows ↔ Web)**. Check one or
 several local folders. A checked parent covers its descendants, while a checked

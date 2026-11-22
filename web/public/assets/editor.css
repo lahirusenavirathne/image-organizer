@@ -1,0 +1,25 @@
+.editor-page { margin:0; background:#f5f8f5; color:#1b2a24; font-family:Inter,system-ui,Arial,sans-serif; }
+.editor-shell { max-width:1450px; margin:auto; padding:16px; }
+.editor-top { display:flex; gap:24px; align-items:center; margin-bottom:16px; justify-content:space-between; }
+.editor-top h1 { margin:0; font-size:1.4rem; }
+.editor-top p { margin:5px 0 0; overflow-wrap:anywhere; max-width:520px; }
+.editor-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(290px,335px); gap:18px; align-items:start; }
+.editor-view { min-width:0; }
+.editor-image-holder { min-height:430px; height:min(68vh,720px); display:grid; place-items:center; position:relative; background:#1c2520; border-radius:15px; padding:15px; }
+.editor-image-holder img { max-width:100%; max-height:100%; object-fit:contain; }
+#editor-loading { position:absolute; bottom:15px; background:#fff; color:#1c2520; padding:7px 12px; border-radius:9px; }
+#editor-loading[hidden] { display:none; }
+.editor-image-actions { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; padding:14px 2px; }
+.editor-controls { display:flex; flex-direction:column; gap:14px; border:1px solid #e4e9e4; background:white; padding:18px; border-radius:15px; }
+.editor-controls h2 { font-size:1rem; margin:0; }
+.editor-controls label { display:block; font-weight:600; font-size:13px; }
+.editor-controls input:not([type=checkbox]):not([type=range]),.editor-controls select { width:100%; box-sizing:border-box; margin-top:6px; padding:8px; }
+.editor-slider output { float:right; color:#41604b; }
+.editor-slider input { display:block; width:100%; accent-color:#2f8154; margin-top:9px; }
+.editor-controls-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.editor-compare { cursor:pointer; }
+#editor-status { min-height:18px; color:#256d4f; line-height:1.4; }
+#editor-status.error { color:#ad2929; }
+.editor-page button:focus-visible,.editor-page a:focus-visible,.editor-page input:focus-visible,.editor-page select:focus-visible { outline:3px solid #468b65; outline-offset:2px; }
+@media(max-width:850px) { .editor-columns { grid-template-columns:1fr; }.editor-image-holder { min-height:260px; height:52vh; }.editor-top { flex-wrap:wrap; }.editor-controls { margin-bottom:25px; } }
+@media(prefers-reduced-motion:reduce) { .editor-page * { scroll-behavior:auto; transition:none!important; } }

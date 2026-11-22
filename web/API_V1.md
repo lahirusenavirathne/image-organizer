@@ -195,3 +195,25 @@ Then, on a **separate staging database and photo store**, test:
 
 **Limitations:** PHP syntax/unit tests do not replace a live DreamHost/MySQL security
 and storage test. No photo-library synchronization is enabled by installing this API.
+
+
+## Selected-folder hierarchy and metadata bridge (Web v0.6)
+
+`POST ?resource=sync&action=metadata_fill` (write-scoped Editor/Admin token)
+
+```json
+{"photo_id": 123, "sha256": "<64-char SHA-256>", "fields": {
+  "location": "Yala", "photographer": "Example Photographer"
+}}
+```
+
+Returns `{"data":{"updated":["location"],"ignored":["photographer"]}}` as appropriate.
+
+- The original's SHA-256 **must match**; no cross-photo metadata copying.
+- Only missing values are filled, while manually reviewed location, attraction, activity
+  and rights fields remain protected. Existing nonempty values are never overwritten.
+- Supports location, attraction, activities, source_url, photographer, copyright_text,
+  license and explicit rights_status; rejects unsupported fields and non-HTTP(S) sources.
+- No disk paths, face identities, GPS, auto-AI provenance or file timestamps are copied.
+- This endpoint does not create, move, rename, overwrite or delete photographs.
+- Selective folder tree sync is initiated from Windows; no new PHP daemon or cron job.

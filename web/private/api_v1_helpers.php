@@ -74,3 +74,53 @@ function api_sync_match(PDO $db, ?int $folder, string $sha, string $name): array
     $stmt->execute($folder===null?[$sha,$name,$sha]:[$folder,$sha,$name,$sha]);
     return api_sync_decision($stmt->fetchAll(),$sha,$name);
 }
+
+/** Photo metadata bridge: no replacement, no deletion, and no automatic rights inference. */
+function api_metadata_limits(): array {
+    return ['location'=>150,'attraction'=>190,'activities'=>500,'source_url'=>1000,
+            'photographer'=>255,'copyright_text'=>1000,'license'=>255,'rights_status'=>32];
+}
+function api_metadata_fillable(array $current, array $incoming): array {
+    if (!$incoming || count($incoming)>8) throw new ApiBadRequest('Provide at least one supported metadata field');
+    $fillable=[];$ignored=[];
+    foreach ($incoming as $key=>$value) {
+        $limits=api_metadata_limits();
+        if (!isset($limits[$key]) || !is_string($value)) throw new ApiBadRequest('Unsupported metadata field');
+        $clean=clean_text($value,$limits[$key]);
+        if ($clean==='' || strlen($value)>$limits[$key]*4) throw new ApiBadRequest('Metadata value is empty or too long');
+        if ($key==='source_url' && (!filter_var($clean,FILTER_VALIDATE_URL) ||
+             !in_array(strtolower((string)parse_url($clean,PHP_URL_SCHEME)),['http','https'],true)))
+            throw new ApiBadRequest('source_url must be HTTP(S)');
+        if ($key==='rights_status' && !in_array($clean,['Verified','Permission required'],true))
+            throw new ApiBadRequest('Invalid explicit rights status');
+        $old=trim((string)($current[$key]??''));
+        $empty=$old==='' || ($key==='rights_status' && $old==='Unknown');
+        $reviewed=($current['ai_status']??'')==='reviewed' &&
+                  in_array($key,['location','attraction','activities','rights_status'],true);
+        if ($empty && !$reviewed) $fillable[$key]=$clean;
+        else $ignored[]=$key;
+    }
+    return ['fillable'=>$fillable,'ignored'=>$ignored];
+}
+function api_metadata_fill(PDO $db,int $id,string $sha,array $incoming): array {
+    api_sync_sha($sha);
+    $db->beginTransaction();
+    try {
+        $stmt=$db->prepare('SELECT * FROM photos WHERE id=? AND deleted_at IS NULL FOR UPDATE');
+        $stmt->execute([$id]);$record=$stmt->fetch();
+        if (!$record) throw new ApiBadRequest('Photo does not exist');
+        if (!hash_equals((string)$record['sha256'],$sha))
+            throw new ApiBadRequest('Metadata fingerprint differs from the actual photo');
+        $decision=api_metadata_fillable($record,$incoming);
+        if ($decision['fillable']) {
+            $set=[];$args=[];
+            foreach ($decision['fillable'] as $field=>$value) {
+                $set[]=$field.'=?';$args[]=$value;
+            }
+            $args[]=$id;
+            $db->prepare('UPDATE photos SET '.implode(',',$set).' WHERE id=?')->execute($args);
+        }
+        $db->commit();
+        return ['updated'=>array_keys($decision['fillable']),'ignored'=>$decision['ignored']];
+    } catch(Throwable $e) {$db->rollBack();throw $e;}
+}

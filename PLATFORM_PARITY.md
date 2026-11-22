@@ -1,7 +1,7 @@
 # Desktop and Web Companion Release Policy
 
-**Desktop:** v1.0.0-rc7 (selected-folder additive two-way sync, staging)  
-**Web:** v0.5.0 (unchanged, staging; API v1)
+**Desktop:** v1.0.0-rc8 (selected-folder hierarchy and blank-only metadata, staging)  
+**Web:** v0.6.0 (staging; API v1 metadata_fill)
 
 ## Selected-folder synchronization
 
@@ -14,8 +14,7 @@ No full-library option, automatic background transfer, or deletions are exposed.
 Web-only photos within selected trees are downloaded to app-managed local storage,
 without overwriting external source files. Selected web child folders can be
 re-created as local virtual folders beneath the selected roots.
-Remote folder hierarchy is recreated beneath the chosen destination; only the
-necessary ancestors and selected roots are created for a manual batch. Existing
+Remote folder hierarchy is recreated beneath the chosen destination; empty descendants as well as the necessary ancestors and selected roots are created in bounded batches. Existing
 folders of the same name are reused. Existing remote photos cannot be overwritten:
 byte-identical SHA-256 files are skipped; same-name/different-bytes files are
 conflicts. Previously transferred unchanged local files are skipped on subsequent
@@ -28,8 +27,10 @@ runs. Interrupted files retry as whole-file transfers, not byte ranges.
 - Both support folders, rename/move/copy, recoverable Trash, original downloads,
   exports and metadata editing, but **there is no bidirectional data model**.
 - Folder renames or moves do not propagate deletion or rename to old remote paths.
-- Metadata, tags, photo revisions, and permissions do
-  not synchronize in this phase. No continuous sync watchers or scheduled jobs.
+- Metadata fields synchronize **blank-only**, with manually reviewed values protected;
+  incompatible nonempty values remain unchanged for human review. File version
+  histories, GPS, faces, AI-origin status, absolute source paths and permissions
+  are never synchronized. No continuous sync watchers or scheduled jobs.
 - Uploaded content is restricted to JPEG/PNG/WebP, max 25 MiB per image.
 - Web API authentication requires an Admin/Editor write-scoped token; this token
   can be revoked at any time.

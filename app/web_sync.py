@@ -177,6 +177,22 @@ class ApiClient:
             raise SyncError('Web API returned an invalid photo listing','response')
         return response
 
+    def get_photo(self, photo_id: int) -> dict:
+        if not isinstance(photo_id,int) or photo_id<1:raise ValueError('Invalid web photograph ID')
+        record=self.request('GET',resource='photos',values={'id':photo_id}).get('data')
+        if not isinstance(record,dict):raise SyncError('Invalid web photo metadata','response')
+        return record
+
+    def fill_metadata(self, photo_id: int, sha256: str, fields: dict) -> dict:
+        """Server-side fill-empty: cannot overwrite a collaborator's metadata."""
+        if not isinstance(photo_id,int) or photo_id<1:raise ValueError('Invalid web photo ID')
+        if not re.fullmatch(r'[a-f0-9]{64}',sha256):raise ValueError('Invalid photo SHA-256')
+        result=self.request('POST',resource='sync',action='metadata_fill',body={
+            'photo_id':photo_id,'sha256':sha256,'fields':fields}).get('data')
+        if not isinstance(result,dict) or not isinstance(result.get('updated'),list):
+            raise SyncError('Invalid web metadata response','response')
+        return result
+
     def download_photo(self, remote_id: int, destination: Path, expected_sha: str) -> None:
         """Stream a verified original to a new local file; refuse overwrites."""
         if remote_id <= 0 or not re.fullmatch(r'[a-f0-9]{64}',expected_sha):

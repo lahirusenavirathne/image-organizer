@@ -216,6 +216,8 @@ function init(){
   $('inspector-close').addEventListener('click',()=>{$('inspector').hidden=true;});$('details-form').addEventListener('submit',saveDetails);
   $('find-similar').addEventListener('click',()=>{if(state.current)showSimilar(state.current);});
   $('view-full').addEventListener('click',()=>{if(!state.current)return;$('full-image').src=`image.php?id=${state.current}&type=original`;$('preview-dialog').showModal();});
+  $('edit-current').hidden=!canEdit;
+  $('edit-current').addEventListener('click',(event)=>{event.preventDefault();if(state.current)window.location.assign(`editor.php?id=${state.current}`);});
   $('download-current').hidden=!canEdit;
   $('download-current').addEventListener('click',()=>{if(state.current)window.location.href=`image.php?id=${state.current}&type=original&download=1`;});
   if(canEdit){

@@ -18,3 +18,8 @@ private/drive-v3-migrate.lock
 private/api-v1-ready
 private/api-v1-ready.tmp
 private/api-v1-migrate.lock
+
+# Photo editor schema migration runtime state (private)
+private/editor-v1-ready
+private/editor-v1-ready.tmp
+private/editor-v1-migrate.lock

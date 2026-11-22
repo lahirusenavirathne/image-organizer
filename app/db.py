@@ -63,11 +63,11 @@ def upsert(con: sqlite3.Connection, meta: dict):
     updates = ['width=excluded.width','height=excluded.height','mtime=excluded.mtime',
                'file_size=excluded.file_size','camera=excluded.camera','gps_lat=excluded.gps_lat',
                'gps_lon=excluded.gps_lon','taken_at=excluded.taken_at',
-               "location=CASE WHEN photos.location_source='Manual' THEN photos.location ELSE excluded.location END",
-               "location_source=CASE WHEN photos.location_source='Manual' THEN photos.location_source ELSE excluded.location_source END",
-               "activities=CASE WHEN photos.ai_source='Manual' THEN photos.activities ELSE '[]' END",
-               "attraction=CASE WHEN photos.ai_source='Manual' THEN photos.attraction ELSE '' END",
-               "ai_source=CASE WHEN photos.ai_source='Manual' THEN photos.ai_source ELSE '' END",
+               "location=CASE WHEN photos.location_source IN ('Manual','Web Sync') THEN photos.location ELSE excluded.location END",
+               "location_source=CASE WHEN photos.location_source IN ('Manual','Web Sync') THEN photos.location_source ELSE excluded.location_source END",
+               "activities=CASE WHEN photos.ai_source IN ('Manual','Web Sync') THEN photos.activities ELSE '[]' END",
+               "attraction=CASE WHEN photos.ai_source IN ('Manual','Web Sync') THEN photos.attraction ELSE '' END",
+               "ai_source=CASE WHEN photos.ai_source IN ('Manual','Web Sync') THEN photos.ai_source ELSE '' END",
                'face_processed=0','face_count=0']
     sql = f"INSERT INTO photos ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)}) " \
           f"ON CONFLICT(path) DO UPDATE SET {','.join(updates)}"

@@ -43,6 +43,19 @@ try {
         api_send(['data'=>['decision'=>$match['decision'],'remote_id'=>$match['id'],
             'remote_sha256'=>$match['sha256'],'folder_id'=>$folder]]);
     }
+    if ($resource==='sync' && $method==='POST' && $action==='metadata_fill') {
+        if (!api_role_permitted($role,$scope,'write'))
+            api_fail(403,'forbidden','Write token required');
+        $body=api_read_json_request();
+        $photoId=int_id($body['photo_id']??null);
+        $sha=api_sync_sha($body['sha256']??null);
+        if (!isset($body['fields']) || !is_array($body['fields']) || array_is_list($body['fields']))
+            throw new ApiBadRequest('fields must be a metadata object');
+        foreach(array_keys($body) as $key)
+            if (!in_array($key,['photo_id','sha256','fields'],true))throw new ApiBadRequest('Unsupported sync property');
+        $result=api_metadata_fill($db,$photoId,$sha,$body['fields']);
+        api_send(['data'=>$result]);
+    }
     if ($resource==='me' && $method==='GET') {
         api_send(['data'=>['id'=>(int)$user['user_id'],'email'=>$user['email'],'role'=>$role,'scope'=>$scope,'api_version'=>'v1']]);
     }

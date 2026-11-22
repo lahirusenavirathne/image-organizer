@@ -1,3 +1,15 @@
+## web-0.7.0 — Non-destructive photo editor R1
+- Dedicated Editor/Admin web editor with server-rendered previews and WebP/JPEG/PNG exports.
+- Versioned MySQL edit recipes, optimistic-locking conflict protection and additive migration.
+- Original image bytes remain private and unchanged. Staging only until live GD/MySQL testing.
+
+# Web v0.6.0 — safe sync metadata fill
+
+- Adds authenticated write-token `sync&action=metadata_fill` endpoint.
+- Validates exact image SHA-256; fills empty fields only; protects reviewed tags.
+- Explicit source/rights validation, no modifications to folder paths or originals.
+- Companion to desktop rc8 full selected-folder hierarchy and metadata sync.
+
 # Web v0.5.0 — safe Windows companion uploads
 
 - New write-token `POST ?resource=sync&action=preflight` validates SHA-256, file size, destination and filename before uploading.
