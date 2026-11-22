@@ -11,7 +11,7 @@ $cases=[
     'Auto width for header'=>str_contains($css,'width:auto;'),
     'Header can wrap'=>str_contains($css,'flex-wrap:wrap;'),
     'Tablet row layout'=>str_contains($css,'order:4;'),
-    'Versioned CSS'=>str_contains($page,'assets/editor.css?v=web-0.8.1-phase1b'),
+    'Versioned CSS'=>str_contains($page,'assets/editor.css?v=web-0.9.0-phase2a'),
 ];
 foreach($cases as $name=>$ok){if(!$ok){fwrite(STDERR,"FAIL: $name\n");exit(1);}}
 echo "Phase1A compact header checks passed\n";

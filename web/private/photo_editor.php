@@ -2,18 +2,19 @@
 declare(strict_types=1);
 require_once __DIR__.'/images.php';
 require_once __DIR__.'/drive.php';
+require_once __DIR__.'/editor_advanced.php';
 
 /** Portable non-destructive edit recipes; all source bytes remain private and unchanged. */
 function editor_defaults(): array {
     return ['rotate'=>0,'straighten'=>0,'crop'=>'original','crop_manual'=>0,'crop_x'=>0,'crop_y'=>0,'crop_w'=>1000,'crop_h'=>1000,'exposure'=>0,'contrast'=>0,'highlights'=>0,
-        'shadows'=>0,'saturation'=>0,'warmth'=>0,'sharpness'=>0];
+        'shadows'=>0,'saturation'=>0,'warmth'=>0,'sharpness'=>0] + editor_advanced_defaults();
 }
 function editor_validate(mixed $candidate): array {
     if (!is_array($candidate) || ($candidate!==[] && array_is_list($candidate))) throw new InvalidArgumentException('Edit settings must be an object');
     $r=editor_defaults();
     $ranges=['exposure'=>[-100,100],'contrast'=>[-100,100], 'highlights'=>[-100,100],
         'shadows'=>[-100,100],'saturation'=>[-100,100],'warmth'=>[-100,100], 'sharpness'=>[0,100], 'straighten'=>[-150,150],
-        'crop_manual'=>[0,1],'crop_x'=>[0,999],'crop_y'=>[0,999],'crop_w'=>[1,1000],'crop_h'=>[1,1000]];
+        'crop_manual'=>[0,1],'crop_x'=>[0,999],'crop_y'=>[0,999],'crop_w'=>[1,1000],'crop_h'=>[1,1000]] + editor_advanced_ranges();
     foreach($candidate as $key=>$value) {
         if(!array_key_exists($key,$r))throw new InvalidArgumentException('Unsupported editing parameter');
         if($key==='crop'){
@@ -174,6 +175,7 @@ function editor_render(GdImage $original,array $input,int $targetW=0,int $target
             imagesetpixel($im,$x,$y,($tone($red)<<16)|($tone($green)<<8)|$tone($blue));
         }
     }
+    editor_advanced_render($im,$r);
     if($r['sharpness']){
         $k=$r['sharpness']/200;
         imageconvolution($im,[[0,-$k,0],[-$k,1+4*$k,-$k],[0,-$k,0]],1.0,0.0);

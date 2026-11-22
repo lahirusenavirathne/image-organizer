@@ -23,8 +23,12 @@
   let saved;
   try { saved = JSON.parse(root.dataset.recipe || '{}'); } catch { saved = {}; }
   const baseline = {rotate:0,straighten:0,crop:'original',crop_manual:0,crop_x:0,crop_y:0,crop_w:1000,crop_h:1000,exposure:0,contrast:0,highlights:0,shadows:0,saturation:0,warmth:0,sharpness:0};
+  const hslColors=['red','orange','yellow','green','cyan','blue','purple','magenta'];
+  const hslFields=hslColors.flatMap(color=>['hue','sat','lum'].map(part=>`hsl_${color}_${part}`));
+  const advancedFields=['whites','blacks','vibrance','tint','curve_shadows','curve_midtones','curve_highlights',...hslFields];
+  for(const key of advancedFields)baseline[key]=0;
   const recipeFields = Object.keys(baseline);
-  const toneFields = ['exposure','contrast','highlights','shadows','saturation','warmth','sharpness'];
+  const toneFields = ['exposure','contrast','highlights','shadows','saturation','warmth','sharpness',...advancedFields];
   const inputs = recipeFields.map(name => form.elements.namedItem(name)).filter(input => input.type!=='hidden');
   const field = name => form.elements.namedItem(name);
   let timer = null, controller = null, imageUrl = null, beforeUrl = null, seq = 0;
@@ -54,10 +58,60 @@
     const min=Number(el.min),max=Number(el.max),value=Number(el.value);
     el.style.setProperty('--slider-pct', Math.round((value-min)*100/(max-min))+'%');
   }
+  function updateToneCurve() {
+    const r=recipe();
+    const offsets=[0,r.curve_shadows*.5,r.curve_midtones*.5,r.curve_highlights*.5,0];
+    const x=[0,64,128,192,255];
+    const commands=[];
+    for(let v=0;v<=255;v+=3){
+      const i=v<64?0:v<128?1:v<192?2:3;
+      const t=(v-x[i])/(x[i+1]-x[i]);const smooth=t*t*(3-2*t);
+      const n=v/255;
+      const val=v+offsets[i]*(1-smooth)+offsets[i+1]*smooth+r.blacks*.34*(1-n)**3+r.whites*.34*n**3;
+      commands.push(`${commands.length?'L':'M'}${v} ${(255-Math.min(255,Math.max(0,val))).toFixed(1)}`);
+    }
+    $('editor-tone-curve-path').setAttribute('d',commands.join(' '));
+  }
+  let histogramFrame=0;
+  function refreshHistogram(){
+    if(histogramFrame)cancelAnimationFrame(histogramFrame);
+    histogramFrame=requestAnimationFrame(()=>{
+      histogramFrame=0;
+      const output=$('editor-clipping');const canvas=$('editor-histogram');if(!canvas||!picture.naturalWidth)return;
+      try{
+        const scratch=document.createElement('canvas');scratch.width=160;scratch.height=96;
+        const sx=scratch.getContext('2d',{willReadFrequently:true});
+        if(!sx)throw new Error('Canvas unavailable');
+        sx.drawImage(picture,0,0,scratch.width,scratch.height);
+        const rgba=sx.getImageData(0,0,scratch.width,scratch.height).data;
+        const bins=Array.from({length:3},()=>new Uint32Array(64));
+        let shadows=0,highlights=0;const count=rgba.length/4;
+        for(let i=0;i<rgba.length;i+=4){
+          for(let channel=0;channel<3;channel++)bins[channel][Math.min(63,rgba[i+channel]>>2)]++;
+          const lum=(rgba[i]*.299+rgba[i+1]*.587+rgba[i+2]*.114);
+          if(lum<5)shadows++;if(lum>250)highlights++;
+        }
+        const ctx=canvas.getContext('2d');if(!ctx)return;
+        const width=canvas.width,height=canvas.height;
+        ctx.clearRect(0,0,width,height);ctx.fillStyle='#101b15';ctx.fillRect(0,0,width,height);
+        const peak=Math.max(...bins.flatMap(channel=>[...channel]));
+        const colors=['rgba(255,112,117,.78)','rgba(110,220,143,.72)','rgba(111,157,255,.8)'];
+        bins.forEach((channel,k)=>{
+          ctx.beginPath();ctx.lineWidth=1.6;ctx.strokeStyle=colors[k];
+          channel.forEach((n,j)=>{const x=j*width/63;const y=height-3-(n/Math.max(1,peak))*(height-7);if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+          ctx.stroke();
+        });
+        output.textContent=`Black clip ${(100*shadows/count).toFixed(1)}% · White clip ${(100*highlights/count).toFixed(1)}%`;
+      }catch{
+        output.textContent='Histogram unavailable for this preview';
+      }
+    });
+  }
   function updateLabels() {
     for (const key of toneFields) {
       const input=field(key);$( 'edit-'+key+'-value').textContent=String(input.value);paintRange(input);
     }
+    updateToneCurve();
     $('editor-straighten-value').textContent=(Number(field('straighten').value)/10).toFixed(1)+'°';
     paintRange(field('straighten'));
     $('editor-quality-label').textContent=field('quality').value+'%';
@@ -130,7 +184,7 @@
       }
       if(local!==seq)return;
       const newUrl=URL.createObjectURL(editedBlob),oldUrl=imageUrl;
-      imageUrl=newUrl;picture.onload=()=>{if(oldUrl)URL.revokeObjectURL(oldUrl);if(cropMode){if(!cropRect)cropRect=initialCropRect();placeCrop();}};picture.src=newUrl;
+      imageUrl=newUrl;picture.onload=()=>{if(oldUrl)URL.revokeObjectURL(oldUrl);if(cropMode){if(!cropRect)cropRect=initialCropRect();placeCrop();}refreshHistogram();};picture.src=newUrl;
       if(priorBlob) {
         const oldBefore=beforeUrl;beforeUrl=URL.createObjectURL(priorBlob);
         original.onload=()=>{if(oldBefore)URL.revokeObjectURL(oldBefore);};original.src=beforeUrl;

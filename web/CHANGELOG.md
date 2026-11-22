@@ -1,3 +1,13 @@
+## web-0.9.0-phase2a — Professional tone and color adjustments
+
+- Live RGB histogram with approximate highlight/shadow clipping readings from the edited preview.
+- Parametric five-knot tone curve with shadow, midtone, highlight controls plus white/black points.
+- Vibrance and magenta/green tint alongside the existing temperature (warmth) slider.
+- Eight-color HSL mixer for reds, oranges, yellows, greens, cyans, blues, purples, magentas (hue/saturation/luminance).
+- New values remain validated, non-destructive and compatible with previous saved recipes, undo/redo, local presets, before/after comparison, export and Save as copy.
+- Server-side HSL operates only when in use. No database migration or modification of source image bytes.
+- Advanced denoise/texture/clarity and white balance sample picker are deferred to Phase 2B due to DreamHost processing limits.
+
 ## web-0.8.1-phase1b — Interactive crop and fine straighten
 
 - Add draggable and keyboard-operable crop boundaries, freeform and aspect-ratio locked composition, plus 0.1-degree straighten control.

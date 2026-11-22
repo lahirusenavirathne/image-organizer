@@ -249,3 +249,28 @@
 .editor-crop-box .crop-ne{transform:translate(0,0)}
 .editor-crop-box .crop-sw{transform:translate(0,0)}
 .editor-crop-box .crop-se{transform:translate(0,0)}
+
+/* Phase 2A — histogram, curves and HSL color controls. */
+.studio-histogram{padding:14px 22px 17px;border-bottom:1px solid var(--studio-line);background:#17251c}
+.studio-histogram-heading{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px}
+.studio-histogram-heading strong{font-size:12px;color:#e8f2e6}
+.studio-histogram-heading output{font-size:10px;color:#b4c8b5;text-align:right}
+#editor-histogram{display:block;width:100%;height:auto;max-height:130px;border-radius:7px;border:1px solid #38503e}
+.studio-histogram .studio-section-note{margin-top:8px}
+.studio-advanced-group{border-top:1px solid #314034;padding-top:13px;display:grid;gap:14px}
+.studio-advanced-group h3{font-size:12px;color:#d9ead5;margin:0;font-weight:750}
+#editor-tone-curve{display:block;width:min(100%,260px);height:auto;margin:0 auto;aspect-ratio:1/1;border-radius:7px}
+.hsl-color-group{border:1px solid #3b4b3e;border-radius:9px;background:#1d2b22;min-width:0}
+.hsl-color-group summary{padding:10px 12px;display:flex;justify-content:flex-start;align-items:center;gap:11px;font-size:12px;cursor:pointer}
+.hsl-color-group summary::after{margin-inline-start:auto}
+.hsl-sliders{display:grid;gap:15px;padding:11px 14px 17px;border-top:1px solid #324437}
+.hsl-color-dot{width:13px;height:13px;flex:none;border:1px solid #ffffff55;border-radius:50%}
+.hsl-red{background:#e65b55}.hsl-orange{background:#f29344}.hsl-yellow{background:#f1d75e}.hsl-green{background:#66b978}
+.hsl-cyan{background:#5ccac3}.hsl-blue{background:#6598e5}.hsl-purple{background:#a580d5}.hsl-magenta{background:#d574bc}
+.studio-advanced-group .editor-slider{min-width:0}
+@media(max-width:630px){.studio-histogram{padding:15px 18px}.studio-histogram-heading{flex-wrap:wrap}.studio-advanced-group{gap:10px}}
+
+/* Keep HSL family swatches circular despite generic accordion summary rules. */
+.editor-page .studio-section .hsl-color-group summary > .hsl-color-dot {
+  flex:0 0 13px;display:inline-block;inline-size:13px;block-size:13px;min-inline-size:13px;
+}

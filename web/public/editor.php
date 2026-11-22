@@ -29,7 +29,7 @@ header('Cache-Control: no-store');
 <meta name="csrf-token" content="<?=h(csrf_token())?>">
 <title>Photo Studio · <?=h((string)$photo['original_name'])?> · Guia Lanka</title>
 <link rel="stylesheet" href="assets/style.css?v=web-0.7.2">
-<link rel="stylesheet" href="assets/editor.css?v=web-0.8.1-phase1b">
+<link rel="stylesheet" href="assets/editor.css?v=web-0.9.0-phase2a">
 </head>
 <body class="editor-page">
 <div class="editor-shell" id="photo-editor" data-photo-id="<?=$id?>" data-revision="<?=h((string)$saved['version'])?>" data-recipe="<?=h(json_encode($saved['recipe'],JSON_INVALID_UTF8_SUBSTITUTE))?>">
@@ -84,7 +84,12 @@ header('Cache-Control: no-store');
     <div class="studio-canvas-status" id="editor-preview-help">Adjust the controls to preview changes. Exporting always creates a new file.</div>
   </main>
   <aside class="studio-inspector" aria-label="Photo adjustments">
-    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.8.1 · PHASE 1B</span></div>
+    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.9.0 · PHASE 2A</span></div>
+    <div class="studio-histogram" role="group" aria-labelledby="editor-histogram-title">
+      <div class="studio-histogram-heading"><strong id="editor-histogram-title">RGB histogram</strong><output id="editor-clipping">Load a photo to view its tonal distribution</output></div>
+      <canvas id="editor-histogram" width="300" height="98" role="img" aria-label="Red, green and blue channel histogram for the current edited preview"></canvas>
+      <p class="studio-section-note">Live preview histogram · clipping readings are approximate.</p>
+    </div>
     <form id="editor-form" class="editor-controls">
       <details id="panel-light" class="studio-section" open>
         <summary><span><span class="studio-section-symbol" aria-hidden="true">☼</span> Light</span><span class="studio-section-summary">Tone &amp; exposure</span></summary>
@@ -92,6 +97,26 @@ header('Cache-Control: no-store');
         <?php foreach(['exposure'=>[-100,100],'contrast'=>[-100,100],'highlights'=>[-100,100],'shadows'=>[-100,100]] as $key=>$range): ?>
           <label class="editor-slider"><span class="studio-slider-heading"><span><?=ucfirst($key)?></span><output for="edit-<?=$key?>" id="edit-<?=$key?>-value">0</output></span><input id="edit-<?=$key?>" name="<?=$key?>" type="range" min="<?=$range[0]?>" max="<?=$range[1]?>" step="1" value="0"></label>
         <?php endforeach; ?>
+          <div class="studio-advanced-group">
+            <h3>Black &amp; white points</h3>
+            <?php foreach(['blacks'=>[-100,100],'whites'=>[-100,100]] as $key=>$range): ?>
+              <label class="editor-slider"><span class="studio-slider-heading"><span><?=ucfirst($key)?></span><output id="edit-<?=$key?>-value">0</output></span>
+                <input id="edit-<?=$key?>" name="<?=$key?>" type="range" min="<?=$range[0]?>" max="<?=$range[1]?>" value="0"></label>
+            <?php endforeach; ?>
+          </div>
+          <div class="studio-advanced-group" id="editor-curve-controls">
+            <h3>Tone curve</h3>
+            <svg id="editor-tone-curve" viewBox="0 0 256 256" role="img" aria-label="Tone curve from darkest tones to brightest" preserveAspectRatio="xMidYMid meet">
+              <rect x="0" y="0" width="255" height="255" fill="#16251b" stroke="#667e69" stroke-width="1"/>
+              <path d="M0 64 H255 M0 128 H255 M0 192 H255 M64 0 V255 M128 0 V255 M192 0 V255" stroke="#46654d" stroke-width=".65" fill="none"/>
+              <path id="editor-tone-curve-path" d="M0 255 L255 0" fill="none" stroke="#c7f1b0" stroke-width="3"/>
+            </svg>
+            <?php foreach(['curve_shadows'=>'Dark tones','curve_midtones'=>'Midtones','curve_highlights'=>'Bright tones'] as $key=>$label): ?>
+              <label class="editor-slider"><span class="studio-slider-heading"><span><?=$label?></span><output id="edit-<?=$key?>-value">0</output></span>
+                <input id="edit-<?=$key?>" name="<?=$key?>" type="range" min="-50" max="50" value="0"></label>
+            <?php endforeach; ?>
+            <p class="studio-section-note">Gentle, smooth curve controls. Neutral values keep your previous adjustments intact.</p>
+          </div>
         </div>
       </details>
       <details id="panel-color" class="studio-section" open>
@@ -100,6 +125,28 @@ header('Cache-Control: no-store');
         <?php foreach(['saturation'=>[-100,100],'warmth'=>[-100,100]] as $key=>$range): ?>
           <label class="editor-slider"><span class="studio-slider-heading"><span><?=ucfirst($key)?></span><output for="edit-<?=$key?>" id="edit-<?=$key?>-value">0</output></span><input id="edit-<?=$key?>" name="<?=$key?>" type="range" min="<?=$range[0]?>" max="<?=$range[1]?>" step="1" value="0"></label>
         <?php endforeach; ?>
+          <div class="studio-advanced-group">
+            <h3>White balance &amp; vibrance</h3>
+            <?php foreach(['tint'=>'Tint (green / magenta)','vibrance'=>'Vibrance'] as $key=>$label): ?>
+              <label class="editor-slider"><span class="studio-slider-heading"><span><?=$label?></span><output id="edit-<?=$key?>-value">0</output></span>
+                <input id="edit-<?=$key?>" name="<?=$key?>" type="range" min="-100" max="100" value="0"></label>
+            <?php endforeach; ?>
+          </div>
+          <div class="studio-advanced-group studio-hsl" id="editor-hsl-controls">
+            <h3>HSL color mixer</h3>
+            <p class="studio-section-note">Adjust individual color families without shifting unrelated colors.</p>
+            <?php foreach(EDITOR_HSL_COLORS as $color): ?>
+              <details class="hsl-color-group">
+                <summary><span class="hsl-color-dot hsl-<?=$color?>" aria-hidden="true"></span><?=ucfirst($color)?></summary>
+                <div class="hsl-sliders">
+                  <?php foreach(['hue'=>['Hue',-30,30],'sat'=>['Saturation',-100,100],'lum'=>['Luminance',-70,70]] as $op=>$spec): $key='hsl_'.$color.'_'.$op; ?>
+                    <label class="editor-slider"><span class="studio-slider-heading"><span><?=$spec[0]?></span><output id="edit-<?=$key?>-value">0</output></span>
+                      <input id="edit-<?=$key?>" name="<?=$key?>" type="range" min="<?=$spec[1]?>" max="<?=$spec[2]?>" value="0"></label>
+                  <?php endforeach; ?>
+                </div>
+              </details>
+            <?php endforeach; ?>
+          </div>
         </div>
       </details>
       <details id="panel-crop" class="studio-section" open>
@@ -162,5 +209,5 @@ header('Cache-Control: no-store');
   </aside>
 </div>
 </div>
-<script src="assets/editor.js?v=web-0.8.1-phase1b" defer></script>
+<script src="assets/editor.js?v=web-0.9.0-phase2a" defer></script>
 </body></html>

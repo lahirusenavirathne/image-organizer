@@ -21,4 +21,4 @@ phase1_assert(str_contains($js,'safeStorageRead')&&str_contains($js,'safeStorage
 phase1_assert(str_contains($js,"data.set('quality',field('quality').value)")&&str_contains($action,'editor_quality('),'Quality forwarded to endpoint');
 phase1_assert(str_contains($action,'$preview?85:editor_quality($_POST'), 'Preview unaffected by export quality');
 phase1_assert(str_contains($css,'.editor-image-stage.zoomed'),'Zoom CSS exists');
-phase1_assert(str_contains($editor,'assets/editor.js?v=web-0.8.1-phase1b'),'Phase1 asset cache-busted');
+phase1_assert(str_contains($editor,'assets/editor.js?v=web-0.9.0-phase2a'),'Phase1 asset cache-busted');
