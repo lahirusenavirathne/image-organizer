@@ -159,3 +159,84 @@ function editor_render(GdImage $original,array $input,int $targetW=0,int $target
     }
     return $im;
 }
+
+/** Build a UTF-8-safe default caption without creating paths or changing existing records. */
+function editor_copy_suggested_name(string $originalName): string {
+    $stem=pathinfo($originalName,PATHINFO_FILENAME);
+    if($stem==='')$stem='photo';
+    $suffix='-edited';
+    while(strlen($stem)>180-strlen($suffix)) {
+        $trimmed=preg_replace('/.$/u','',$stem);
+        if($trimmed===null || $trimmed===$stem) {$stem=substr($stem,0,-1);break;}
+        $stem=$trimmed;
+    }
+    return $stem.$suffix;
+}
+
+/** Save the rendered image as a separate, full library photograph, never overwriting its source.
+ * The caller provides an already bounded editor_render() image. The copy is intentionally
+ * a flattened image, so its own edit recipe starts at the neutral defaults.
+ */
+function editor_copy_filename(mixed $requested, string $format): string {
+    if (!in_array($format,['webp','jpg','png'],true)) throw new InvalidArgumentException('Unsupported copy format');
+    if (!is_string($requested)) throw new InvalidArgumentException('Enter a name for the edited copy');
+    $name=trim($requested);
+    if ($name==='') throw new InvalidArgumentException('Enter a name for the edited copy');
+    try {$name=drive_name($name,180);}catch(RuntimeException){throw new InvalidArgumentException('Invalid copy filename');}
+    // User may type an extension. The selected output format always wins.
+    $name=preg_replace('/\.(?:jpe?g|png|webp)$/i','',$name);
+    $name=trim((string)$name," .");
+    if ($name==='') throw new InvalidArgumentException('Invalid copy filename');
+    return $name.'.'.$format;
+}
+
+function editor_save_as_copy(PDO $db, array $source, GdImage $rendered, string $format, string $requestedName): array {
+    $filename=editor_copy_filename($requestedName,$format);
+    ensure_dirs();
+    $temp=private_path('tmp/'.bin2hex(random_bytes(20)).'.'.$format);
+    $copied=null;
+    try {
+        $ok=match($format) {
+            'webp'=>function_exists('imagewebp') && imagewebp($rendered,$temp,86),
+            'jpg'=>imagejpeg($rendered,$temp,86),
+            'png'=>imagepng($rendered,$temp,6),
+        };
+        if (!$ok) throw new RuntimeException('Unable to encode the edited copy on this server');
+        // Revalidate actual bytes/dimensions before saving to the photo catalog.
+        details($temp);
+        $db->beginTransaction();
+        try {
+            // Lock and recheck live source record so a simultaneous trash/move cannot
+            // silently place the derived image in an unexpected/deleted folder.
+            $stmt=$db->prepare('SELECT * FROM photos WHERE id=? AND deleted_at IS NULL FOR UPDATE');
+            $stmt->execute([(int)$source['id']]);$current=$stmt->fetch();
+            if (!$current) throw new DomainException('Original photo moved to Trash; reload the editor');
+            $folder=$current['folder_id']===null?null:(int)$current['folder_id'];
+            drive_folder_path($db,$folder);
+            // ingest_image() writes a random private original, generates its own thumbnail,
+            // hashes the actual bytes, and inserts a new row on this same PDO connection.
+            $copied=ingest_image($temp,$filename,(string)($current['source_folder']??''),false,true);
+            $sql='UPDATE photos SET folder_id=?,camera=?,taken_at=?,location=?,attraction=?,activities=?,source_url=?,photographer=?,copyright_text=?,license=?,rights_status=?,ai_status=?,ai_note=? WHERE id=?';
+            $metadata=[
+                $folder,$current['camera'],$current['taken_at'],$current['location'],
+                $current['attraction'],$current['activities'],$current['source_url'],
+                $current['photographer'],$current['copyright_text'],$current['license'],
+                $current['rights_status'],'not analyzed',null,(int)$copied['id']
+            ];
+            $db->prepare($sql)->execute($metadata);
+            $db->commit();
+            return ['id'=>(int)$copied['id'],'name'=>$filename,'folder_id'=>$folder];
+        }catch(Throwable $e){
+            if ($db->inTransaction()) $db->rollBack();
+            // A completed ingest writes files before the DB commit; clean them on rollback.
+            if ($copied!==null) {
+                $stored=(string)($copied['stored_name']??'');
+                if (preg_match('/\A[a-f0-9]{40}\.(?:jpg|png|webp)\z/',$stored)) {
+                    @unlink(private_path('originals/'.$stored));
+                    @unlink(private_path('thumbnails/'.$stored.'.jpg'));
+                }
+            }
+            throw $e;
+        }
+    } finally {if (is_file($temp)) @unlink($temp);}
+}

@@ -91,7 +91,7 @@ function safe_basename(string $name): string {
     $name=preg_replace('/[^\pL\pN. _()-]+/u','_', $name) ?: 'image';
     return substr($name,0,220);
 }
-function ingest_image(string $temp, string $name, string $source, bool $is_upload): array {
+function ingest_image(string $temp, string $name, string $source, bool $is_upload, bool $includeStorageName=false): array {
     ensure_dirs();check_gd();
     [$mime,$w,$h,$bytes]=details($temp);
     $stored=bin2hex(random_bytes(20)).'.'.mime_extension($mime);
@@ -115,7 +115,9 @@ function ingest_image(string $temp, string $name, string $source, bool $is_uploa
         $fingerprints=thumbnail($new,$thumb,$mime);
         $stm=pdo()->prepare('INSERT INTO photos(stored_name,original_name,sha256,dhash,color_sig,mime,file_size,width,height,camera,taken_at,source_folder,photographer,copyright_text) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $stm->execute([$stored,safe_basename($name),$sha,$fingerprints[0],$fingerprints[1],$mime,$bytes,$w,$h,$camera,$taken,clean_text($source,500),$photographer,$copyright]);
-        return ['id'=>(int)pdo()->lastInsertId(),'name'=>safe_basename($name),'hash'=>$fingerprints[0]];
+        $result=['id'=>(int)pdo()->lastInsertId(),'name'=>safe_basename($name),'hash'=>$fingerprints[0]];
+        if ($includeStorageName) $result['stored_name']=$stored; // internal cleanup only; not exposed by public uploads
+        return $result;
     } catch(Throwable $e) { @unlink($new);@unlink($thumb);throw $e; }
 }
 function make_export(array $photo,int $w,int $h,string $format): array {

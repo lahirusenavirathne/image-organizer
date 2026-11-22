@@ -53,9 +53,10 @@
     data.set('recipe', JSON.stringify(params));
     data.set('csrf', csrf);
     if(action==='save')data.set('version',String(revision));
-    if(action==='export'){
+    if(action==='export'||action==='save_copy'){
       data.set('width',field('width').value);data.set('height',field('height').value);
       data.set('format',field('format').value);
+      if(action==='save_copy')data.set('copy_name',field('copy_name').value.trim());
     }
     const res=await fetch('editor_action.php',{method:'POST',body:data,credentials:'same-origin',signal:abortSignal,cache:'no-store'});
     if(!res.ok){const error=await res.json().catch(()=>null);throw new Error(error?.error||`Server returned HTTP ${res.status}`);}
@@ -85,12 +86,18 @@
       revision=data.version;root.dataset.revision=String(revision);status('Adjustments saved. Original photograph unchanged.');savedState(false);
     } catch(error){status('Save failed: '+error.message,true);}
   }
-  async function exportCopy() {
-    if(!form.reportValidity())return;
+  function exportSettingsValid(requireCopyName = false) {
+    // Downloading a file must not depend on the unrelated library-copy filename.
+    for(const key of ['width','height','format'])if(!field(key).reportValidity())return false;
+    if(requireCopyName && !field('copy_name').reportValidity())return false;
     const width=Number(field('width').value),height=Number(field('height').value);
     if(width<0||height<0||(width===0&&height===0)||width>2500||height>2500||width*height>2500000){
-      status('Specify an image no larger than 2.5 megapixels and 2500 pixels per side.',true);return;
+      status('Specify an image no larger than 2.5 megapixels and 2500 pixels per side.',true);return false;
     }
+    return true;
+  }
+  async function exportCopy() {
+    if(!exportSettingsValid())return;
     const button=document.getElementById('editor-export');button.disabled=true;
     status('Preparing your new edited file…');
     try{
@@ -103,6 +110,20 @@
     }catch(error){status('Export failed: '+error.message,true);}
     finally{button.disabled=false;}
   }
+  async function saveAsCopy() {
+    if(!exportSettingsValid(true))return;
+    const button=document.getElementById('editor-save-copy');button.disabled=true;
+    status('Saving edited photograph to your library…');
+    try {
+      const res=await send('save_copy',recipe());const result=await res.json();
+      status('Saved a new edited photograph in the original folder. Your original is unchanged.');
+      const link=document.createElement('a');
+      link.href=`editor.php?id=${encodeURIComponent(String(result.id))}`;
+      link.className='studio-copy-success';link.textContent='Open new copy: '+result.name;
+      message.append(link);
+    }catch(error){status('Save as copy failed: '+error.message,true);}
+    finally{button.disabled=false;}
+  }
   for(const el of inputs){
     if(!Object.prototype.hasOwnProperty.call(baseline,el.name))continue;
     el.addEventListener(el.type==='range'?'input':'change',()=>{updateLabels();savedState(true);if(!before.checked)queuePreview();});
@@ -110,6 +131,7 @@
   before.addEventListener('change',queuePreview);
   document.getElementById('editor-save').addEventListener('click',save);
   document.getElementById('editor-export').addEventListener('click',exportCopy);
+  document.getElementById('editor-save-copy').addEventListener('click',saveAsCopy);
   document.getElementById('editor-reset').addEventListener('click',()=>{before.checked=false;loadForm(baseline);savedState(true);status('Sliders reset. Click Save adjustments to update the saved recipe.');});
   const exportJump=document.getElementById('editor-top-export');
   if(exportJump)exportJump.addEventListener('click',()=>{

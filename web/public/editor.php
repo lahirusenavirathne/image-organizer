@@ -29,7 +29,7 @@ header('Cache-Control: no-store');
 <meta name="csrf-token" content="<?=h(csrf_token())?>">
 <title>Photo Studio · <?=h((string)$photo['original_name'])?> · Guia Lanka</title>
 <link rel="stylesheet" href="assets/style.css?v=web-0.7.2">
-<link rel="stylesheet" href="assets/editor.css?v=web-0.7.2">
+<link rel="stylesheet" href="assets/editor.css?v=web-0.7.5">
 </head>
 <body class="editor-page">
 <div class="editor-shell" id="photo-editor" data-photo-id="<?=$id?>" data-revision="<?=h((string)$saved['version'])?>" data-recipe="<?=h(json_encode($saved['recipe'],JSON_INVALID_UTF8_SUBSTITUTE))?>">
@@ -69,7 +69,7 @@ header('Cache-Control: no-store');
     <div class="studio-canvas-status" id="editor-preview-help">Adjust the controls to preview changes. Exporting always creates a new file.</div>
   </main>
   <aside class="studio-inspector" aria-label="Photo adjustments">
-    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.7.2</span></div>
+    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.7.5</span></div>
     <form id="editor-form" class="editor-controls">
       <details id="panel-light" class="studio-section" open>
         <summary><span><span class="studio-section-symbol" aria-hidden="true">☼</span> Light</span><span class="studio-section-summary">Tone &amp; exposure</span></summary>
@@ -111,13 +111,22 @@ header('Cache-Control: no-store');
           <label>Height (px)<input name="height" type="number" min="0" max="2500" value="300" required></label>
         </div>
         <label class="studio-export-format">File format<select name="format"><option value="webp">WebP · Web optimized</option><option value="jpg">JPEG</option><option value="png">PNG</option></select></label>
-        <button class="studio-button studio-button-primary studio-export-button" id="editor-export" type="button">Download edited copy <span aria-hidden="true">↗</span></button>
-        <p class="studio-section-note">Maximum 2.5 megapixels per export on shared hosting.</p>
+        <label class="studio-copy-name" for="editor-copy-name">Save copy with filename
+          <input id="editor-copy-name" name="copy_name" type="text" minlength="1" maxlength="180" required
+                 value="<?=h(editor_copy_suggested_name((string)$photo['original_name']))?>"
+                 aria-describedby="editor-copy-help">
+        </label>
+        <p class="studio-section-note" id="editor-copy-help">Both actions use the format and dimensions above. Save as copy adds a new photograph to the same library folder, keeping the original and its metadata intact.</p>
+        <div class="studio-copy-buttons">
+          <button class="studio-button studio-button-primary" id="editor-save-copy" type="button">Save as copy</button>
+          <button class="studio-button studio-button-outline" id="editor-export" type="button">Download edited copy <span aria-hidden="true">↗</span></button>
+        </div>
+        <p class="studio-section-note">Maximum 2.5 megapixels per export or saved copy on shared hosting.</p>
       </section>
       <div role="status" aria-live="polite" id="editor-status" class="studio-message"></div>
     </form>
   </aside>
 </div>
 </div>
-<script src="assets/editor.js?v=web-0.7.2" defer></script>
+<script src="assets/editor.js?v=web-0.7.5" defer></script>
 </body></html>

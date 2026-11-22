@@ -1,3 +1,11 @@
+## web-0.7.5 — Save as copy in Photo Studio
+
+- Add Save as copy alongside Download edited copy. Both respect the current crop, adjustments, dimensions and output format.
+- The saved image becomes a distinct photo in the source folder with separate private bytes, thumbnail, SHA-256 and visual hashes; original photo and saved edit recipe remain unchanged.
+- Keep catalog provenance (source, photographer, copyright, license, rights status, camera, captured date and location) while resetting AI review status for the newly flattened pixels.
+- Require Editor/Admin role, POST and CSRF; validate filenames and export limits, and clean up files if persistence fails.
+- No schema migration. Exports and saves are limited to 2.5 MP on DreamHost shared hosting.
+
 ## web-0.7.4 — Rich list view and photo details metadata
 
 - List view shows captured date, camera, dimensions, file type, size, photographer, added date, rights, source folder and activities, as stored.

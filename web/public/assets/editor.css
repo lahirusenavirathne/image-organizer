@@ -153,3 +153,12 @@
 .editor-slider input[type="range"]::-moz-range-track {height:4px;background:#45584a;border-radius:9px}
 .editor-slider input[type="range"]::-moz-range-progress {height:4px;background:var(--studio-bright);border-radius:9px}
 .editor-slider input[type="range"]::-moz-range-thumb {width:14px;height:14px;background:#e9fbdc;border:2px solid #3f6545;border-radius:50%}
+
+/* web-0.7.5: two distinct actions — keep a separate photo in the library, or download it. */
+.studio-copy-name{display:block;margin:4px 0 12px}
+.studio-copy-name input{display:block;width:100%;margin-top:7px;min-height:40px;padding:9px 11px;color:#ecf5eb;background:#25312a;border:1px solid #3b4a3f;border-radius:8px}
+.studio-copy-name input:user-invalid{border-color:#e78d80}
+.studio-copy-name input:focus-visible{outline:2px solid var(--studio-bright);outline-offset:2px}
+.studio-copy-buttons{display:grid;grid-template-columns:1fr;gap:9px;margin:14px 0}
+.studio-copy-buttons .studio-button{width:100%;min-width:0;white-space:normal;text-align:center}
+.studio-copy-success{display:block;margin-top:8px;color:#d3eec7;text-decoration:underline;text-underline-offset:3px}

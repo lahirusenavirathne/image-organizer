@@ -1,3 +1,7 @@
+### Save as copy (web-0.7.5)
+
+Choose the desired width, height and WebP/JPEG/PNG format, supply a copy name, then click **Save as copy** in Photo Studio. This makes a separate photo under the original folder with its own physical image, SHA-256 and thumbnail; the original and its saved edit recipe are untouched. Unlike **Download edited copy**, it stays in the web photo library. The new image inherits source and rights metadata; its AI tags must be reviewed again. No DB migration is required beyond existing editor/drive migrations. Requires PHP GD (including the requested encoder) and a writable private originals/thumbnails/tmp directory. Use a test photo on staging before production. Maximum 2.5 MP.
+
 ## Web v0.7.2 — Photo Studio visual update
 
 No additional database migration is needed beyond the existing editor migration. After pulling the updated files, use `Ctrl+Shift+R` in the browser. The editor stylesheet and script are versioned as `web-0.7.2` to avoid stale browser caches. Native controls remain server-validated. The new layout adds grouped controls, the left tool rail, original comparison, save state, and responsive behavior; no new image-processing features are claimed. Test at desktop and mobile widths with real stored photos before promoting to production. Because this environment blocks real-browser rendering, the live visual appearance has not been independently confirmed here.
