@@ -1,3 +1,10 @@
+## web-0.8.0-phase1a.1 — compact Undo/Redo header layout
+
+- Fix Undo/Redo buttons expanding to full-width bars in Photo Studio at tablet and narrow desktop widths.
+- Keep buttons compact, with responsive header row wrapping and no change to undo/redo behavior.
+- Version the editor stylesheet URL to invalidate browser cache on DreamHost.
+- No database or image changes.
+
 ## web-0.8.0-phase1a — Photo Studio Phase 1, first milestone
 
 - Undo/Redo with keyboard shortcuts and grouped slider changes.

@@ -29,7 +29,7 @@ header('Cache-Control: no-store');
 <meta name="csrf-token" content="<?=h(csrf_token())?>">
 <title>Photo Studio · <?=h((string)$photo['original_name'])?> · Guia Lanka</title>
 <link rel="stylesheet" href="assets/style.css?v=web-0.7.2">
-<link rel="stylesheet" href="assets/editor.css?v=web-0.8.0-phase1a">
+<link rel="stylesheet" href="assets/editor.css?v=web-0.8.0-phase1a.1">
 </head>
 <body class="editor-page">
 <div class="editor-shell" id="photo-editor" data-photo-id="<?=$id?>" data-revision="<?=h((string)$saved['version'])?>" data-recipe="<?=h(json_encode($saved['recipe'],JSON_INVALID_UTF8_SUBSTITUTE))?>">

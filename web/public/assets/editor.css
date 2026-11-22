@@ -189,3 +189,37 @@
 .studio-export-quality input{display:block;width:100%;accent-color:var(--studio-bright);margin:10px 0 0}
 .editor-page .studio-header-actions{flex-wrap:wrap}
 @media(max-width:630px){.studio-compare-control{order:3;width:100%;justify-content:center}.studio-zoom-controls{margin-inline-start:auto}.studio-canvas-foot{flex-wrap:wrap;gap:10px}}
+
+
+/* Phase 1A.1: keep Undo/Redo compact within the toolbar. Previously the
+   generic muted button width:100% made each one fill its own header row. */
+.editor-page .studio-header-actions {
+  min-width:0;
+  max-width:100%;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-items:center;
+}
+.editor-page .studio-header-actions .studio-button {
+  flex:0 0 auto;
+  width:auto;
+  max-width:100%;
+}
+.editor-page .studio-header-actions #editor-undo,
+.editor-page .studio-header-actions #editor-redo {
+  min-width:72px;
+  padding-inline:10px;
+}
+@media (max-width:1000px) {
+  /* Place controls in their own contained row below the file title. */
+  .editor-page .studio-header-actions {
+    order:4;
+    flex:1 1 100%;
+    width:100%;
+    margin-inline-start:0;
+  }
+}
+@media (max-width:630px) {
+  .editor-page .studio-header-actions {justify-content:flex-start;gap:7px}
+}
