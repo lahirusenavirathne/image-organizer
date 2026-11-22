@@ -7,7 +7,19 @@ try{
     $id=int_id($_GET['id']??null);
     $db=pdo();drive_migrate($db);editor_migrate($db);
     $photo=editor_photo($db,$id);$saved=editor_stored($db,$id);
-}catch(Throwable){http_response_code(404);exit('Photo unavailable or not authorized');}
+}catch(Throwable $e){
+    error_log('GLPM photo editor page: '.get_class($e));
+    $status=http_response_code();
+    if($status===401 || $status===403){
+        exit('Please sign in with an Editor or Administrator account to edit photos.');
+    }
+    if($e instanceof PDOException || str_contains($e->getMessage(),'migration') || str_contains($e->getMessage(),'schema')){
+        http_response_code(503);
+        exit('The photo editor database is not ready. Run web/bin/migrate_editor.php from SSH and check PHP logs.');
+    }
+    http_response_code(404);
+    exit('Photo unavailable. Check the photo ID and confirm it is not in Trash.');
+}
 function h(string $value):string{return htmlspecialchars($value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 header('Cache-Control: no-store');
 ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="<?=h(csrf_token())?>"><title>Photo editor · Guia Lanka</title><link rel="stylesheet" href="assets/style.css"><link rel="stylesheet" href="assets/editor.css"></head>
@@ -25,4 +37,4 @@ header('Cache-Control: no-store');
 <div class="dimension-fields"><label>Width (px)<input name="width" type="number" min="0" max="2500" value="272" required></label><label>Height (px)<input name="height" type="number" min="0" max="2500" value="300" required></label></div>
 <label>Output format<select name="format"><option value="webp">WebP</option><option value="jpg">JPEG</option><option value="png">PNG</option></select></label>
 <button class="button primary" id="editor-export" type="button">Download edited copy</button><div role="status" aria-live="polite" id="editor-status"></div>
-</form></div></main><script src="assets/editor.js" defer></script></body></html>
+</form></div></main><script src="assets/editor.js?v=web-0.7.1" defer></script></body></html>

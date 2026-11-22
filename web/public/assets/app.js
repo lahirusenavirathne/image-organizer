@@ -129,6 +129,8 @@ function inspectPhoto(p){
   $('ai-note').textContent=`AI: ${p.ai_status||'not analyzed'}${p.ai_note?' — '+p.ai_note:''}`;
   for(const el of form.querySelectorAll('input,select,button'))el.disabled=!canEdit;
   $('rename-current').hidden=!canEdit;
+  // Native navigation works without a separate click-only redirect handler.
+  $('edit-current').href=`editor.php?id=${encodeURIComponent(String(p.id))}`;
 }
 async function showSimilar(id){
   state.view='similar';state.selected.clear();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view==='similar'));
@@ -217,7 +219,6 @@ function init(){
   $('find-similar').addEventListener('click',()=>{if(state.current)showSimilar(state.current);});
   $('view-full').addEventListener('click',()=>{if(!state.current)return;$('full-image').src=`image.php?id=${state.current}&type=original`;$('preview-dialog').showModal();});
   $('edit-current').hidden=!canEdit;
-  $('edit-current').addEventListener('click',(event)=>{event.preventDefault();if(state.current)window.location.assign(`editor.php?id=${state.current}`);});
   $('download-current').hidden=!canEdit;
   $('download-current').addEventListener('click',()=>{if(state.current)window.location.href=`image.php?id=${state.current}&type=original&download=1`;});
   if(canEdit){

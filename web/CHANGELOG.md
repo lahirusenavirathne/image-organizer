@@ -1,3 +1,10 @@
+## web-0.7.1 — Edit photo navigation reliability
+
+- Use a real photo-specific editor link in the inspector rather than a `#` link whose click handler can be stale in browser cache.
+- Version the gallery and editor JavaScript asset URLs to bust old browser caches after upgrades.
+- Improve editor-page errors so missing database setup is distinguishable from photo not found; authentication remains enforced.
+- No photo files, edit recipes, or production data are changed by this patch.
+
 ## web-0.7.0 — Non-destructive photo editor R1
 - Dedicated Editor/Admin web editor with server-rendered previews and WebP/JPEG/PNG exports.
 - Versioned MySQL edit recipes, optimistic-locking conflict protection and additive migration.
