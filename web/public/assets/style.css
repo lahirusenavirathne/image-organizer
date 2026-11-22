@@ -47,3 +47,18 @@
 .trashed-photo{height:158px;display:grid;place-items:center;font-size:40px;background:#f2f4f1;color:#85958a}.gallery.list-mode .trashed-photo{height:88px;font-size:28px}
 
 .api-token-value{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;width:100%;max-width:100%;margin:8px 0 12px} .auth-card input:user-invalid{outline:2px solid #c95d4d;outline-offset:1px}
+
+/* web-0.7.3: A single view toggle controls folders AND photos. */
+#view-toggle[aria-pressed="true"]{background:var(--green-light);border-color:#9ec9af;color:var(--green)}
+.folder-grid.list-mode{grid-template-columns:minmax(0,1fr);gap:7px}
+.folder-grid.list-mode .folder-card{display:flex;align-items:center;gap:12px;min-height:66px;padding:8px 12px}
+.folder-grid.list-mode .folder-open{flex:1 1 auto;min-width:0;padding:5px 6px}
+.folder-grid.list-mode .folder-symbol{font-size:22px}
+.folder-grid.list-mode .folder-name{flex:1;min-width:0}
+.folder-grid.list-mode .folder-controls{flex:0 1 auto;justify-content:flex-end;padding:0;min-width:0}
+@media(max-width:640px){
+  .folder-grid.list-mode{grid-template-columns:minmax(0,1fr)}
+  .folder-grid.list-mode .folder-card{flex-wrap:wrap;gap:3px 8px}
+  .folder-grid.list-mode .folder-open{flex-basis:100%}
+  .folder-grid.list-mode .folder-controls{width:100%;justify-content:flex-start;padding-inline-start:37px}
+}

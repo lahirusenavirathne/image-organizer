@@ -1,3 +1,11 @@
+## web-0.7.3 — Grid/List view consistency
+
+- Fix List view so it changes both folder cards and photo cards, including the My Drive root and Trash.
+- Remember the list/grid preference in browser local storage; the toggle still works if browser storage is unavailable.
+- Use a stable, accessible List view toggle label with aria-pressed and visible pressed styling.
+- Version both library CSS and JavaScript URLs to prevent mismatched cached assets after Git deployments.
+- Add browser-driven regression coverage for folder/photo layout, toggle state, persistence, and returning to grid.
+
 ## web-0.7.2 — Photo Studio visual redesign
 
 - Replaces the minimal editor layout with a modern dark, image-first photo studio for desktop and mobile.

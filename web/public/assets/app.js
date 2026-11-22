@@ -4,7 +4,27 @@ const csrf=document.querySelector('meta[name="csrf-token"]')?.content||'';
 const userRole=document.body.dataset.role||'viewer';
 const canEdit=userRole!=='viewer';
 const isAdmin=userRole==='admin';
-const state={view:'drive',folder:null,page:1,pages:1,photos:[],folders:[],folderOptions:[],selected:new Set(),current:null,total:0,sort:'newest',listView:false,busy:false,manager:null};
+const VIEW_MODE_KEY='glpm-library-list-view';
+function storedListView(){
+  try{return window.localStorage.getItem(VIEW_MODE_KEY)==='true';}
+  catch{return false;} // Restricted/private storage must never break the library.
+}
+const state={view:'drive',folder:null,page:1,pages:1,photos:[],folders:[],folderOptions:[],selected:new Set(),current:null,total:0,sort:'newest',listView:storedListView(),busy:false,manager:null};
+function applyViewMode(){
+  // My Drive shows both folders and photographs. Both must change together.
+  $('gallery').classList.toggle('list-mode',state.listView);
+  $('folder-grid').classList.toggle('list-mode',state.listView);
+  const button=$('view-toggle');
+  button.setAttribute('aria-pressed',String(state.listView));
+  button.textContent='List view'; // Stable accessible toggle name with pressed state.
+  button.title=state.listView?'List view active — click to switch to grid':'Switch to list view';
+}
+function toggleViewMode(){
+  state.listView=!state.listView;
+  applyViewMode();
+  try{window.localStorage.setItem(VIEW_MODE_KEY,String(state.listView));}
+  catch{} // Storage permission is optional; switching still works in memory.
+}
 const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sizeStr=n=>`${(Number(n||0)/1024/1024).toFixed(2)} MB`;
 const fmt=p=>[p.location,p.attraction].filter(Boolean).join(' · ')||'Location unknown';
@@ -212,7 +232,7 @@ function init(){
   $('filter-location').addEventListener('change',()=>{state.page=1;load();});$('filter-activity').addEventListener('input',throttleInput(()=>{state.page=1;load();}));$('filter-rights').addEventListener('change',()=>{state.page=1;load();});$('filters').addEventListener('reset',()=>setTimeout(()=>{state.page=1;load();},0));
   $('filter-toggle').addEventListener('click',()=>{const e=$('filters');e.hidden=!e.hidden;$('filter-toggle').setAttribute('aria-expanded',String(!e.hidden));});
   $('sort-by').addEventListener('change',()=>{state.sort=$('sort-by').value;state.selected.clear();load();});
-  $('view-toggle').addEventListener('click',()=>{state.listView=!state.listView;$('view-toggle').setAttribute('aria-pressed',String(state.listView));$('view-toggle').textContent=state.listView?'Grid view':'List view';$('gallery').classList.toggle('list-mode',state.listView);});
+  $('view-toggle').addEventListener('click',toggleViewMode);
   $('prev-page').addEventListener('click',()=>{state.page=Math.max(1,state.page-1);load();});$('next-page').addEventListener('click',()=>{state.page=Math.min(state.pages,state.page+1);load();});
   $('clear-selection').addEventListener('click',()=>{state.selected.clear();renderPhotos(state.photos);});$('select-page').addEventListener('click',()=>{for(const p of state.photos)state.selected.add(Number(p.id));renderPhotos(state.photos);});
   $('inspector-close').addEventListener('click',()=>{$('inspector').hidden=true;});$('details-form').addEventListener('submit',saveDetails);
@@ -247,6 +267,6 @@ function init(){
     document.addEventListener('dragleave',()=>{dragDepth=Math.max(0,dragDepth-1);if(dragDepth===0)$('drop-zone').hidden=true;});
     document.addEventListener('drop',e=>{if(!e.dataTransfer?.files?.length)return;e.preventDefault();dragDepth=0;$('drop-zone').hidden=true;uploadFiles(e.dataTransfer.files);});
   }
-  updateSelected();load();
+  applyViewMode();updateSelected();load();
 }
 init();
