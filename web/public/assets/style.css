@@ -62,3 +62,31 @@
   .folder-grid.list-mode .folder-open{flex-basis:100%}
   .folder-grid.list-mode .folder-controls{width:100%;justify-content:flex-start;padding-inline-start:37px}
 }
+
+/* web-0.7.4: real photo metadata in list rows and a readable technical-details section. */
+.photo-list-fields{display:none;margin:0}
+.gallery.list-mode .photo-card{grid-template-columns:minmax(88px,124px) minmax(0,1fr);min-height:120px}
+.gallery.list-mode .photo-open,.gallery.list-mode .photo-open img{height:100%;min-height:120px}
+.gallery.list-mode .photo-meta{min-width:0;padding:12px 16px}
+.gallery.list-mode .photo-list-fields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px 15px;margin-top:12px}
+.meta-pair{min-width:0;overflow-wrap:anywhere}
+.meta-pair dt{font-size:10px;text-transform:uppercase;letter-spacing:.055em;color:#77877c;font-weight:750;line-height:1.35}
+.meta-pair dd{font-size:12px;color:#293c31;font-weight:550;line-height:1.45;margin:4px 0 0;min-width:0;overflow-wrap:anywhere}
+.gallery.list-mode .photo-name{font-size:14px}
+.gallery.list-mode .photo-location{margin-top:3px}
+.folder-list-metadata{display:none;color:#748279;font-size:12px;white-space:nowrap}
+.folder-grid.list-mode .folder-list-metadata{display:inline-block;flex:0 1 auto}
+.detail-facts-section{margin:17px 0;padding:16px 0;border-block:1px solid var(--line)}
+.detail-facts-section h3,.details-edit-heading{font-size:13px;margin:0 0 13px;color:#244b35;letter-spacing:.01em}
+.detail-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 15px;margin:0}
+.detail-facts .meta-pair:first-child,.detail-facts .meta-pair:last-child,.detail-facts .meta-pair:nth-child(10){grid-column:1/-1}
+.detail-facts .meta-pair dd{font-size:12px}
+.detail-facts-section .fine{margin:12px 0 0}
+@media(max-width:1500px){.gallery.list-mode .photo-list-fields{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1050px){.gallery.list-mode .photo-list-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:640px){
+  .gallery.list-mode .photo-card{grid-template-columns:88px minmax(0,1fr)}
+  .gallery.list-mode .photo-meta{padding:10px 12px}
+  .gallery.list-mode .photo-list-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .folder-grid.list-mode .folder-list-metadata{padding-inline-start:37px}
+}

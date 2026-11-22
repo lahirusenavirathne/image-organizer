@@ -42,7 +42,7 @@ try {
             $where=implode(' AND ',$filter);
             $count=$db->prepare('SELECT COUNT(*) FROM photos p WHERE '.$where);$count->execute($params);$total=(int)$count->fetchColumn();
             $page=min($page,max(1,(int)ceil($total/$limit)));
-            $rows=$db->prepare('SELECT p.id,p.original_name,p.mime,p.width,p.height,p.file_size,p.folder_id,p.location,p.attraction,p.activities,p.rights_status,p.photographer,p.source_folder,p.source_url,p.copyright_text,p.license,p.ai_status,p.ai_note,p.created_at,p.deleted_at FROM photos p WHERE '.$where.' ORDER BY '.$sortBy.' LIMIT '.$limit.' OFFSET '.(($page-1)*$limit));
+            $rows=$db->prepare('SELECT p.id,p.original_name,p.mime,p.width,p.height,p.file_size,p.folder_id,p.camera,p.taken_at,p.sha256,p.updated_at,p.location,p.attraction,p.activities,p.rights_status,p.photographer,p.source_folder,p.source_url,p.copyright_text,p.license,p.ai_status,p.ai_note,p.created_at,p.deleted_at FROM photos p WHERE '.$where.' ORDER BY '.$sortBy.' LIMIT '.$limit.' OFFSET '.(($page-1)*$limit));
             $rows->execute($params);
             $folders=[];
             if($view==='drive' || $view==='trash'){

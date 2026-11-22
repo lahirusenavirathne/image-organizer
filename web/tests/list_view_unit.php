@@ -6,8 +6,8 @@ $html=(string)file_get_contents($root.'/public/index.php');
 $js=(string)file_get_contents($root.'/public/assets/app.js');
 $css=(string)file_get_contents($root.'/public/assets/style.css');
 $checks=[
- 'Library CSS cache version'=>substr_count($html,'assets/style.css?v=web-0.7.3')===2,
- 'Library JS cache version'=>str_contains($html,'assets/app.js?v=web-0.7.3'),
+ 'Library CSS cache version'=>substr_count($html,'assets/style.css?v=web-0.7.4')===2,
+ 'Library JS cache version'=>str_contains($html,'assets/app.js?v=web-0.7.4'),
  'Photo gallery list styling'=>str_contains($css,'.gallery.list-mode'),
  'Folder list styling'=>str_contains($css,'.folder-grid.list-mode'),
  'Both containers change together'=>str_contains($js,"$('folder-grid').classList.toggle('list-mode',state.listView)") && str_contains($js,"$('gallery').classList.toggle('list-mode',state.listView)"),

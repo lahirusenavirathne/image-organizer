@@ -28,6 +28,58 @@ function toggleViewMode(){
 const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sizeStr=n=>`${(Number(n||0)/1024/1024).toFixed(2)} MB`;
 const fmt=p=>[p.location,p.attraction].filter(Boolean).join(' · ')||'Location unknown';
+const knownText=(value)=>value===null||value===undefined||String(value).trim()===''?'Not recorded':String(value).trim();
+const fileFormat=(value)=>({'image/jpeg':'JPEG','image/png':'PNG','image/webp':'WebP'}[String(value||'').toLowerCase()]||knownText(value));
+const photoDimensions=(p)=>Number(p.width)>0&&Number(p.height)>0?`${p.width} × ${p.height} px`:'Not recorded';
+const fileSizeText=(value)=>Number.isFinite(Number(value))&&Number(value)>0?sizeStr(value):'Not recorded';
+const folderPathText=(id)=>{
+  if(id===null||id===undefined||id==='')return 'My Drive';
+  const byId=new Map(state.folderOptions.map(f=>[String(f.id),f]));
+  const parts=[];let key=String(id);const seen=new Set();
+  while(key&&!seen.has(key)&&parts.length<30){
+    seen.add(key);const folder=byId.get(key);if(!folder)break;
+    parts.unshift(folder.name);key=folder.parent_id==null?'':String(folder.parent_id);
+  }
+  return parts.length?'My Drive / '+parts.join(' / '):'Not recorded';
+};
+function addMetadataPair(list,label,value){
+  const item=document.createElement('div');item.className='meta-pair';
+  const term=document.createElement('dt');term.textContent=label;
+  const description=document.createElement('dd');description.textContent=knownText(value);
+  description.title=description.textContent;
+  item.append(term,description);list.append(item);
+}
+function populatePhotoFacts(p){
+  const facts=$('detail-facts');facts.replaceChildren();
+  const pairs=[
+    ['Original filename',p.original_name||p.name],
+    ['Photo ID',p.id],
+    ['File format',fileFormat(p.mime)],
+    ['Dimensions',photoDimensions(p)],
+    ['File size',fileSizeText(p.file_size)],
+    ['Camera model',p.camera],
+    ['Date photographed',p.taken_at],
+    ['Added to library',p.created_at],
+    ['Catalog updated',p.updated_at],
+    ['Folder',folderPathText(p.folder_id)],
+    ['Photographer',p.photographer],
+    ['Rights status',p.rights_status],
+    ['SHA-256 fingerprint',p.sha256]
+  ];
+  for(const [label,value] of pairs)addMetadataPair(facts,label,value);
+}
+function photoListMetadata(p){
+  const list=document.createElement('dl');list.className='photo-list-fields';
+  const pairs=[
+    ['Photographed',p.taken_at],['Camera',p.camera],
+    ['Dimensions',photoDimensions(p)],['File type',fileFormat(p.mime)],
+    ['File size',fileSizeText(p.file_size)],['Photographer',p.photographer],
+    ['Added',p.created_at],['Rights',p.rights_status],
+    ['Source',p.source_folder],['Activities',p.activities]
+  ];
+  for(const [label,value] of pairs)addMetadataPair(list,label,value);
+  return list;
+}
 const idList=()=>[...state.selected];
 function notice(text,isError=false){const el=$('notice');el.hidden=false;el.className='notice'+(isError?' error':'');el.textContent=text;}
 function clearNotice(){$('notice').hidden=true;}
@@ -116,7 +168,8 @@ function renderFolders(folders){
         controls.append(actionButton('ZIP',()=>downloadFolder(folder.id)));
       }
     }
-    card.append(open,controls);section.append(card);
+    const folderInfo=document.createElement('span');folderInfo.className='folder-list-metadata';folderInfo.textContent=`Created: ${knownText(folder.created_at)}`;
+    card.append(open,folderInfo,controls);section.append(card);
   }
 }
 function actionButton(text,handler,danger=false){const button=document.createElement('button');button.type='button';button.className='mini-action'+(danger?' danger':'');button.textContent=text;button.addEventListener('click',handler);return button;}
@@ -133,7 +186,7 @@ function renderPhotos(photos,similarity=false){
     const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selected;checkbox.setAttribute('aria-label','Select '+(p.original_name||p.name));checkbox.addEventListener('change',()=>{if(checkbox.checked)state.selected.add(id);else state.selected.delete(id);article.classList.toggle('is-selected',checkbox.checked);updateSelected();});
     const cWrap=document.createElement('label');cWrap.className='photo-check';cWrap.append(checkbox);
     const information=document.createElement('div');information.className='photo-meta';const name=document.createElement('div');name.className='photo-name';name.textContent=p.original_name||p.name||'Photo';name.title=name.textContent;
-    const desc=document.createElement('div');desc.className='photo-location';desc.textContent=state.view==='trash'?'In Trash':fmt(p);information.append(name,desc);
+    const desc=document.createElement('div');desc.className='photo-location';desc.textContent=state.view==='trash'?'In Trash':fmt(p);information.append(name,desc,photoListMetadata(p));
     if(similarity && p.type){const tag=document.createElement('span');tag.className='similar-tag';tag.textContent=p.type+(Number.isFinite(Number(p.distance))?' · d='+p.distance:'');information.append(tag);}
     article.append(open,cWrap,information);gallery.append(article);
   }
@@ -144,7 +197,8 @@ function inspectPhoto(p){
   if(state.view==='trash')return;state.current=Number(p.id);
   $('inspector').hidden=false;$('detail-image').src=`image.php?id=${p.id}&type=thumb`;$('detail-image').alt=p.original_name||p.name||'Photo';
   $('detail-name').textContent=p.original_name||p.name||'';
-  $('detail-size').textContent=`${p.width||'?'} × ${p.height||'?'} px · ${sizeStr(p.file_size)}`;
+  $('detail-size').textContent=`${photoDimensions(p)} · ${fileSizeText(p.file_size)} · ${fileFormat(p.mime)}`;
+  populatePhotoFacts(p);
   const form=$('details-form');for(const key of ['location','attraction','activities','source_folder','source_url','photographer','copyright_text','license','rights_status'])if(form.elements[key])form.elements[key].value=p[key]||(key==='rights_status'?'Unknown':'');
   $('ai-note').textContent=`AI: ${p.ai_status||'not analyzed'}${p.ai_note?' — '+p.ai_note:''}`;
   for(const el of form.querySelectorAll('input,select,button'))el.disabled=!canEdit;

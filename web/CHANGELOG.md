@@ -1,3 +1,12 @@
+## web-0.7.4 — Rich list view and photo details metadata
+
+- List view shows captured date, camera, dimensions, file type, size, photographer, added date, rights, source folder and activities, as stored.
+- Folder list rows display their creation date.
+- Photo details now presents technical metadata, storage folder, photographer, rights, catalog dates and SHA-256 fingerprint; editable location/source/rights fields remain unchanged.
+- Extend the authorized library API to include existing camera, taken_at, sha256 and updated_at fields. No database migration required.
+- Missing EXIF and optional fields are shown as Not recorded, without fabricating values or inspecting private originals on every page render.
+- Version the library CSS and JavaScript assets to avoid stale styling after deployment.
+
 ## web-0.7.3 — Grid/List view consistency
 
 - Fix List view so it changes both folder cards and photo cards, including the My Drive root and Trash.
