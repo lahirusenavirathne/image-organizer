@@ -8,6 +8,7 @@
   const original = $('editor-before-image');
   const divider = $('editor-compare-divider');
   const imageStage = $('editor-image-stage');
+  const cropBox = $('editor-crop-box');
   const holder = imageStage.parentElement;
   const message = $('editor-status');
   const loading = $('editor-loading');
@@ -21,13 +22,14 @@
   let revision = Number(root.dataset.revision);
   let saved;
   try { saved = JSON.parse(root.dataset.recipe || '{}'); } catch { saved = {}; }
-  const baseline = {rotate:0,crop:'original',exposure:0,contrast:0,highlights:0,shadows:0,saturation:0,warmth:0,sharpness:0};
+  const baseline = {rotate:0,straighten:0,crop:'original',crop_manual:0,crop_x:0,crop_y:0,crop_w:1000,crop_h:1000,exposure:0,contrast:0,highlights:0,shadows:0,saturation:0,warmth:0,sharpness:0};
   const recipeFields = Object.keys(baseline);
   const toneFields = ['exposure','contrast','highlights','shadows','saturation','warmth','sharpness'];
-  const inputs = recipeFields.map(name => form.elements.namedItem(name));
+  const inputs = recipeFields.map(name => form.elements.namedItem(name)).filter(input => input.type!=='hidden');
   const field = name => form.elements.namedItem(name);
   let timer = null, controller = null, imageUrl = null, beforeUrl = null, seq = 0;
   let beforeGeometry = '', zoom = 1, panX = 0, panY = 0, pointer = null;
+  let cropMode = false, cropRect = null, cropPointer = null;
   let undoStack = [], redoStack = [], currentSnapshot = '', lastEditKey = '', lastEditAt = 0;
   const presetKey = 'glpm-photo-editor-presets-v1';
   const status = (text, error = false) => { message.textContent = text; message.classList.toggle('error', error); };
@@ -36,6 +38,7 @@
   const normalize = values => ({ ...baseline, ...Object.fromEntries(recipeFields.filter(k => values && Object.prototype.hasOwnProperty.call(values,k)).map(k => [k,values[k]])) });
   function recipe() {
     const r = { ...baseline, rotate:Number(field('rotate').value), crop:field('crop').value };
+    for(const key of ['straighten','crop_manual','crop_x','crop_y','crop_w','crop_h'])r[key]=Number(field(key).value);
     for (const key of toneFields) r[key] = Number(field(key).value);
     return r;
   }
@@ -55,6 +58,8 @@
     for (const key of toneFields) {
       const input=field(key);$( 'edit-'+key+'-value').textContent=String(input.value);paintRange(input);
     }
+    $('editor-straighten-value').textContent=(Number(field('straighten').value)/10).toFixed(1)+'°';
+    paintRange(field('straighten'));
     $('editor-quality-label').textContent=field('quality').value+'%';
     $('editor-quality').disabled=field('format').value==='png';
     $('editor-quality-hint').textContent=field('format').value==='png' ? 'PNG is lossless; the quality control is not used.' : 'Higher quality creates larger files. 80–90 is a useful web starting point.';
@@ -64,7 +69,7 @@
     const normalized=normalize(values);
     for (const key of recipeFields) field(key).value=String(normalized[key]);
     if (!preserveHistory) {undoStack=[];redoStack=[];currentSnapshot=serial(normalized);lastEditKey='';updateUndoButtons();}
-    updateLabels();savedState();queuePreview();
+    updateLabels();savedState();if(cropMode){cropRect=null;}queuePreview();
   }
   function recordEdit(key) {
     const next=serial(recipe());if(next===currentSnapshot)return;
@@ -112,9 +117,10 @@
     if(controller)controller.abort();controller=new AbortController();const local=++seq;
     loading.hidden=false;
     const settings=recipe();
-    const geometry=settings.crop+'|'+settings.rotate;
+    const geometry=['crop','rotate','straighten','crop_manual','crop_x','crop_y','crop_w','crop_h'].map(k=>settings[k]).join('|');
     try {
-      const editedResponse=await send('preview',settings,controller.signal);
+      const displaySettings=cropMode?{...settings,crop:'original',crop_manual:0,crop_x:0,crop_y:0,crop_w:1000,crop_h:1000}:settings;
+      const editedResponse=await send('preview',displaySettings,controller.signal);
       const editedBlob=await editedResponse.blob();
       if(local!==seq)return;
       let priorBlob=null;
@@ -124,19 +130,138 @@
       }
       if(local!==seq)return;
       const newUrl=URL.createObjectURL(editedBlob),oldUrl=imageUrl;
-      imageUrl=newUrl;picture.onload=()=>{if(oldUrl)URL.revokeObjectURL(oldUrl);};picture.src=newUrl;
+      imageUrl=newUrl;picture.onload=()=>{if(oldUrl)URL.revokeObjectURL(oldUrl);if(cropMode){if(!cropRect)cropRect=initialCropRect();placeCrop();}};picture.src=newUrl;
       if(priorBlob) {
         const oldBefore=beforeUrl;beforeUrl=URL.createObjectURL(priorBlob);
         original.onload=()=>{if(oldBefore)URL.revokeObjectURL(oldBefore);};original.src=beforeUrl;
         beforeGeometry=geometry;
       }
       updateCompareUI();loading.hidden=true;
-      if(previewHelp)previewHelp.textContent=compare.checked?'Drag the comparison slider to see original tones versus edited tones. Crop and rotation match.':'Showing adjusted preview · Original file preserved.';
+      if(previewHelp)previewHelp.textContent=cropMode?'Crop mode: resize the corner handles or drag inside the selection to move. Press Done cropping to apply.':compare.checked?'Drag the comparison slider to see original tones versus edited tones. Crop and rotation match.':'Showing adjusted preview · Original file preserved.';
     } catch(error) {
       if(error.name==='AbortError'||local!==seq)return;
       loading.hidden=true;status('Preview error: '+error.message,true);
     }
   }
+  // Crop geometry is normalized to the full preview after rotation/straightening, not to screen pixels.
+  const bound=(value,low,high)=>Math.max(low,Math.min(high,value));
+  function pictureGeometry(){
+    const w=imageStage.clientWidth,h=imageStage.clientHeight;
+    if(!w||!h||!picture.naturalWidth||!picture.naturalHeight)return null;
+    const ratio=picture.naturalWidth/picture.naturalHeight;
+    const width=Math.min(w,h*ratio),height=width/ratio;
+    return {left:(w-width)/2,top:(h-height)/2,width,height};
+  }
+  const ratioPresets={'square':1,'4:3':4/3,'3:2':1.5,'16:9':16/9,'272:300':272/300};
+  function aspectLocked(){
+    const option=field('crop').value,geometry=pictureGeometry();
+    if(!geometry||option==='free')return null;
+    if(option==='original')return geometry.width/geometry.height;
+    return ratioPresets[option]||null;
+  }
+  function initialCropRect(){
+    const selected=recipe();
+    if(selected.crop_manual)return {x:selected.crop_x/1000,y:selected.crop_y/1000,w:selected.crop_w/1000,h:selected.crop_h/1000};
+    const geometry=pictureGeometry(),ratio=aspectLocked();
+    if(!geometry||ratio===null)return {x:0,y:0,w:1,h:1};
+    const imageRatio=geometry.width/geometry.height;
+    const w=imageRatio>ratio?ratio/imageRatio:1;
+    const h=imageRatio>ratio?1:imageRatio/ratio;
+    return {x:(1-w)/2,y:(1-h)/2,w,h};
+  }
+  function placeCrop(){
+    if(!cropMode||!cropRect){cropBox.hidden=true;return;}
+    const g=pictureGeometry();if(!g){cropBox.hidden=true;return;}
+    cropBox.hidden=false;
+    cropBox.style.left=(g.left+cropRect.x*g.width)+'px';
+    cropBox.style.top=(g.top+cropRect.y*g.height)+'px';
+    cropBox.style.width=(cropRect.w*g.width)+'px';
+    cropBox.style.height=(cropRect.h*g.height)+'px';
+  }
+  function encodeCrop(rect){
+    const x=bound(Math.round(rect.x*1000),0,999),y=bound(Math.round(rect.y*1000),0,999);
+    field('crop_manual').value='1';field('crop_x').value=String(x);field('crop_y').value=String(y);
+    field('crop_w').value=String(bound(Math.round(rect.w*1000),1,1000-x));
+    field('crop_h').value=String(bound(Math.round(rect.h*1000),1,1000-y));
+    savedState();
+  }
+  function resizeCrop(start,handle,dx,dy){
+    if(handle==='move')return {x:bound(start.x+dx,0,1-start.w),y:bound(start.y+dy,0,1-start.h),w:start.w,h:start.h};
+    const west=handle.includes('w'),north=handle.includes('n');
+    const anchorX=west?start.x+start.w:start.x,anchorY=north?start.y+start.h:start.y;
+    const endX=(west?start.x:start.x+start.w)+dx,endY=(north?start.y:start.y+start.h)+dy;
+    const maxW=west?anchorX:1-anchorX,maxH=north?anchorY:1-anchorY;
+    let w=bound(Math.abs(anchorX-endX),.03,maxW),h=bound(Math.abs(anchorY-endY),.03,maxH);
+    const g=pictureGeometry(),aspect=aspectLocked();
+    if(g&&aspect!==null){
+      const normalizedRatio=aspect*g.height/g.width;
+      const wFromH=h*normalizedRatio;
+      if(Math.abs(wFromH-start.w)>Math.abs(w-start.w))w=wFromH;
+      w=bound(w,Math.min(.03,maxW,maxH*normalizedRatio),Math.min(maxW,maxH*normalizedRatio));
+      h=w/normalizedRatio;
+    }
+    return {x:west?anchorX-w:anchorX,y:north?anchorY-h:anchorY,w,h};
+  }
+  function toggleCropMode(force){
+    const next=force===undefined?!cropMode:!!force;
+    if(next===cropMode)return;
+    cropMode=next;
+    if(cropMode){
+      changeZoom(1);compare.checked=false;updateCompareUI();cropRect=null;
+    } else {cropPointer=null;cropBox.hidden=true;cropRect=null;}
+    $('editor-crop-toggle').textContent=cropMode?'Done cropping':'Edit crop on image';
+    $('editor-crop-toggle').setAttribute('aria-pressed',String(cropMode));
+    for(const id of ['editor-zoom-out','editor-zoom-in','editor-zoom-fit','editor-before'])$(id).disabled=cropMode;
+    if(cropMode){
+      $('panel-crop').open=true;
+      status('Crop mode: drag corners or move the selection. Use focused handles and arrow keys for precise changes.');
+    }
+    queuePreview();
+  }
+  function resetCrop(){
+    field('crop_manual').value='0';
+    for(const [key,value] of Object.entries({crop_x:0,crop_y:0,crop_w:1000,crop_h:1000}))field(key).value=String(value);
+    cropRect=null;recordEdit('crop-reset');
+    if(cropMode)queuePreview();
+    status('Crop reset to the selected aspect ratio. Original photo remains unchanged.');
+  }
+  function commitCropChange(){encodeCrop(cropRect);recordEdit('crop-drag');}
+  cropBox.querySelectorAll('[data-crop-handle]').forEach(handle=>{
+    const name=handle.dataset.cropHandle;
+    handle.addEventListener('pointerdown',event=>{
+      if(!cropMode||!cropRect||event.button!==0)return;
+      event.preventDefault();event.stopPropagation();
+      cropPointer={id:event.pointerId,name,x:event.clientX,y:event.clientY,rect:{...cropRect},settings:recipe()};
+      handle.setPointerCapture(event.pointerId);handle.classList.add('dragging');
+    });
+    handle.addEventListener('pointermove',event=>{
+      if(!cropPointer||event.pointerId!==cropPointer.id||name!==cropPointer.name)return;
+      const g=pictureGeometry();if(!g)return;
+      cropRect=resizeCrop(cropPointer.rect,name,(event.clientX-cropPointer.x)/g.width,(event.clientY-cropPointer.y)/g.height);
+      encodeCrop(cropRect);placeCrop();
+    });
+    handle.addEventListener('lostpointercapture',()=>{
+      handle.classList.remove('dragging');
+      if(cropPointer && cropPointer.name===name){cropPointer=null;commitCropChange();}
+    });
+    handle.addEventListener('pointercancel',()=>{
+      if(cropPointer && cropPointer.name===name){
+        cropRect={...cropPointer.rect};
+        for(const key of ['crop_manual','crop_x','crop_y','crop_w','crop_h'])field(key).value=String(cropPointer.settings[key]);
+        cropPointer=null;placeCrop();savedState();
+      }
+    });
+    handle.addEventListener('keydown',event=>{
+      if(!cropMode||!cropRect||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+      const g=pictureGeometry();if(!g)return;
+      event.preventDefault();const step=event.shiftKey?20:4;
+      const dx=event.key==='ArrowLeft'?-step/g.width:event.key==='ArrowRight'?step/g.width:0;
+      const dy=event.key==='ArrowUp'?-step/g.height:event.key==='ArrowDown'?step/g.height:0;
+      cropRect=resizeCrop(cropRect,name,dx,dy);placeCrop();commitCropChange();
+    });
+  });
+  $('editor-crop-toggle').addEventListener('click',()=>toggleCropMode());
+  $('editor-crop-reset').addEventListener('click',resetCrop);
   function changeZoom(next){
     zoom=Math.max(1,Math.min(3,next));if(zoom===1){panX=0;panY=0;}
     clampPan();renderZoom();
@@ -202,7 +327,13 @@
     $('editor-remove-preset').disabled=!select.value;
   }
   for(const el of inputs){
-    el.addEventListener(el.type==='range'?'input':'change',()=>{updateLabels();recordEdit(el.name);});
+    el.addEventListener(el.type==='range'?'input':'change',()=>{
+      if(el.name==='crop'){
+        field('crop_manual').value='0';cropRect=null;
+        for(const [key,value] of Object.entries({crop_x:0,crop_y:0,crop_w:1000,crop_h:1000}))field(key).value=String(value);
+      }
+      updateLabels();recordEdit(el.name);
+    });
     if(el.type==='range')el.addEventListener('change',()=>{lastEditKey='';});
   }
   field('quality').addEventListener('input',updateLabels);
@@ -222,7 +353,7 @@
   $('editor-zoom-in').addEventListener('click',()=>changeZoom(zoom===1?1.5:zoom===1.5?2:3));
   $('editor-zoom-fit').addEventListener('click',()=>changeZoom(1));
   imageStage.addEventListener('pointerdown',event=>{
-    if(event.button!==0||zoom===1)return;
+    if(cropMode||event.button!==0||zoom===1)return;
     pointer={id:event.pointerId,x:event.clientX,y:event.clientY,panX,panY};
     imageStage.setPointerCapture(event.pointerId);
   });
@@ -233,11 +364,12 @@
   });
   imageStage.addEventListener('lostpointercapture',()=>{pointer=null;});
   imageStage.addEventListener('pointercancel',()=>{pointer=null;});
-  window.addEventListener('resize',()=>{clampPan();renderZoom();});
+  window.addEventListener('resize',()=>{clampPan();renderZoom();placeCrop();});
   $('editor-save').addEventListener('click',save);
   $('editor-export').addEventListener('click',exportCopy);
   $('editor-save-copy').addEventListener('click',saveAsCopy);
   $('editor-reset').addEventListener('click',()=>{
+    if(cropMode)toggleCropMode(false);
     for(const k of recipeFields)field(k).value=String(baseline[k]);
     recordEdit('reset');updateLabels();status('Sliders reset. Save adjustments to persist the reset.');
   });
@@ -255,7 +387,7 @@
   $('editor-apply-preset').addEventListener('click',()=>{
     const selected=presets.find(p=>p.name===$('editor-preset-select').value);if(!selected)return;
     for(const k of recipeFields)if(Object.prototype.hasOwnProperty.call(selected.recipe,k))field(k).value=String(selected.recipe[k]);
-    updateLabels();recordEdit('preset');status('Applied preset: '+selected.name);
+    updateLabels();cropRect=null;recordEdit('preset');status('Applied preset: '+selected.name);
   });
   $('editor-remove-preset').addEventListener('click',()=>{
     const name=$('editor-preset-select').value;if(!name)return;

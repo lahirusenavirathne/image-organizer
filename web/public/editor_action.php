@@ -27,7 +27,7 @@ try {
     if($action==='preview_before'){
         // Compare the same geometry, but remove tonal/color adjustments.
         // An aligned overlay is meaningful even if the image was cropped/rotated.
-        $recipe=array_merge(editor_defaults(),['rotate'=>$recipe['rotate'],'crop'=>$recipe['crop']]);
+        $recipe=array_merge(editor_defaults(),array_intersect_key($recipe,array_flip(['rotate','straighten','crop','crop_manual','crop_x','crop_y','crop_w','crop_h'])));
     }
     $image=editor_render($original,$recipe,$width,$height,$preview);
     if($action==='save_copy'){

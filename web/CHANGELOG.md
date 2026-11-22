@@ -1,3 +1,10 @@
+## web-0.8.1-phase1b — Interactive crop and fine straighten
+
+- Add draggable and keyboard-operable crop boundaries, freeform and aspect-ratio locked composition, plus 0.1-degree straighten control.
+- Persist manual rectangular crop coordinates as integer thousandths of the post-rotation image, with validation and backward compatibility for legacy presets.
+- Keep before/after aligned, existing undo/redo, presets, export quality and Save as copy workflows.
+- No database migration or destructive changes to originals.
+
 ## web-0.8.0-phase1a.1 — compact Undo/Redo header layout
 
 - Fix Undo/Redo buttons expanding to full-width bars in Photo Studio at tablet and narrow desktop widths.

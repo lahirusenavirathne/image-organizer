@@ -5,18 +5,19 @@ require_once __DIR__.'/drive.php';
 
 /** Portable non-destructive edit recipes; all source bytes remain private and unchanged. */
 function editor_defaults(): array {
-    return ['rotate'=>0,'crop'=>'original','exposure'=>0,'contrast'=>0,'highlights'=>0,
+    return ['rotate'=>0,'straighten'=>0,'crop'=>'original','crop_manual'=>0,'crop_x'=>0,'crop_y'=>0,'crop_w'=>1000,'crop_h'=>1000,'exposure'=>0,'contrast'=>0,'highlights'=>0,
         'shadows'=>0,'saturation'=>0,'warmth'=>0,'sharpness'=>0];
 }
 function editor_validate(mixed $candidate): array {
     if (!is_array($candidate) || ($candidate!==[] && array_is_list($candidate))) throw new InvalidArgumentException('Edit settings must be an object');
     $r=editor_defaults();
     $ranges=['exposure'=>[-100,100],'contrast'=>[-100,100], 'highlights'=>[-100,100],
-        'shadows'=>[-100,100],'saturation'=>[-100,100],'warmth'=>[-100,100], 'sharpness'=>[0,100]];
+        'shadows'=>[-100,100],'saturation'=>[-100,100],'warmth'=>[-100,100], 'sharpness'=>[0,100], 'straighten'=>[-150,150],
+        'crop_manual'=>[0,1],'crop_x'=>[0,999],'crop_y'=>[0,999],'crop_w'=>[1,1000],'crop_h'=>[1,1000]];
     foreach($candidate as $key=>$value) {
         if(!array_key_exists($key,$r))throw new InvalidArgumentException('Unsupported editing parameter');
         if($key==='crop'){
-            if(!is_string($value) || !in_array($value,['original','square','4:3','3:2','16:9','272:300'],true))
+            if(!is_string($value) || !in_array($value,['original','free','square','4:3','3:2','16:9','272:300'],true))
                 throw new InvalidArgumentException('Invalid crop preset');
         }elseif($key==='rotate'){
             if(!is_int($value)||!in_array($value,[0,90,180,270],true))throw new InvalidArgumentException('Invalid rotation');
@@ -24,6 +25,8 @@ function editor_validate(mixed $candidate): array {
             throw new InvalidArgumentException('Invalid adjustment range');
         $r[$key]=$value;
     }
+    if($r['crop_x']+$r['crop_w']>1000 || $r['crop_y']+$r['crop_h']>1000)
+        throw new InvalidArgumentException('Crop rectangle extends outside the photograph');
     return $r;
 }
 function editor_parse_recipe(mixed $raw): array {
@@ -89,6 +92,17 @@ function editor_crop(GdImage $source,string $crop): GdImage {
     if(!$out instanceof GdImage)throw new RuntimeException('Cropping failed');
     return $out;
 }
+/** Crop a relative rectangle on the already rotated/straightened image. */
+function editor_crop_rect(GdImage $source, array $recipe): GdImage {
+    $w=imagesx($source);$h=imagesy($source);
+    $x=min($w-1,(int)floor($w*$recipe['crop_x']/1000));
+    $y=min($h-1,(int)floor($h*$recipe['crop_y']/1000));
+    $right=min($w,max($x+1,(int)round($w*($recipe['crop_x']+$recipe['crop_w'])/1000)));
+    $bottom=min($h,max($y+1,(int)round($h*($recipe['crop_y']+$recipe['crop_h'])/1000)));
+    $result=imagecrop($source,['x'=>$x,'y'=>$y,'width'=>$right-$x,'height'=>$bottom-$y]);
+    if(!$result instanceof GdImage)throw new RuntimeException('Manual cropping failed');
+    return $result;
+}
 function editor_output_size(int $w,int $h,int $requestedW,int $requestedH,bool $preview): array {
     if($requestedW<0||$requestedH<0||$requestedW>2500||$requestedH>2500)throw new InvalidArgumentException('Invalid export size');
     if($preview) {
@@ -119,7 +133,14 @@ function editor_render(GdImage $original,array $input,int $targetW=0,int $target
         if(!$rotated instanceof GdImage)throw new RuntimeException('Rotation failed');
         $source=$rotated;
     }
-    $source=editor_crop($source,$r['crop']);
+    if($r['straighten']) {
+        // Tenths of a degree. GD positive angles rotate counter-clockwise.
+        $white=imagecolorallocate($source,255,255,255);
+        $corrected=imagerotate($source,-$r['straighten']/10,$white);
+        if(!$corrected instanceof GdImage)throw new RuntimeException('Straightening failed');
+        $source=$corrected;
+    }
+    $source=$r['crop_manual']?editor_crop_rect($source,$r):editor_crop($source,$r['crop']);
     $w=imagesx($source);$h=imagesy($source);
     [$ow,$oh]=editor_output_size($w,$h,$targetW,$targetH,$preview);
     // Center-crop when both dimensions are specified, preserving aspect ratios.

@@ -29,7 +29,7 @@ header('Cache-Control: no-store');
 <meta name="csrf-token" content="<?=h(csrf_token())?>">
 <title>Photo Studio · <?=h((string)$photo['original_name'])?> · Guia Lanka</title>
 <link rel="stylesheet" href="assets/style.css?v=web-0.7.2">
-<link rel="stylesheet" href="assets/editor.css?v=web-0.8.0-phase1a.1">
+<link rel="stylesheet" href="assets/editor.css?v=web-0.8.1-phase1b">
 </head>
 <body class="editor-page">
 <div class="editor-shell" id="photo-editor" data-photo-id="<?=$id?>" data-revision="<?=h((string)$saved['version'])?>" data-recipe="<?=h(json_encode($saved['recipe'],JSON_INVALID_UTF8_SUBSTITUTE))?>">
@@ -64,6 +64,13 @@ header('Cache-Control: no-store');
         <img id="editor-preview" alt="Current adjusted photo preview" fetchpriority="high">
         <img id="editor-before-image" alt="Original tones with the same crop and rotation" hidden>
         <div id="editor-compare-divider" hidden aria-hidden="true"></div>
+        <div id="editor-crop-box" class="editor-crop-box" hidden role="group" aria-label="Crop selection. Drag handles or use arrow keys to adjust.">
+          <button type="button" class="crop-move" data-crop-handle="move" aria-label="Move crop. Use arrow keys to reposition."><span class="crop-grid" aria-hidden="true"></span></button>
+          <button type="button" class="crop-handle crop-nw" data-crop-handle="nw" aria-label="Resize crop from top left. Use arrow keys."></button>
+          <button type="button" class="crop-handle crop-ne" data-crop-handle="ne" aria-label="Resize crop from top right. Use arrow keys."></button>
+          <button type="button" class="crop-handle crop-sw" data-crop-handle="sw" aria-label="Resize crop from bottom left. Use arrow keys."></button>
+          <button type="button" class="crop-handle crop-se" data-crop-handle="se" aria-label="Resize crop from bottom right. Use arrow keys."></button>
+        </div>
       </div>
       <div id="editor-loading" role="status" aria-live="polite">Preparing preview…</div>
     </div>
@@ -77,7 +84,7 @@ header('Cache-Control: no-store');
     <div class="studio-canvas-status" id="editor-preview-help">Adjust the controls to preview changes. Exporting always creates a new file.</div>
   </main>
   <aside class="studio-inspector" aria-label="Photo adjustments">
-    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.8.0 · PHASE 1</span></div>
+    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.8.1 · PHASE 1B</span></div>
     <form id="editor-form" class="editor-controls">
       <details id="panel-light" class="studio-section" open>
         <summary><span><span class="studio-section-symbol" aria-hidden="true">☼</span> Light</span><span class="studio-section-summary">Tone &amp; exposure</span></summary>
@@ -98,9 +105,14 @@ header('Cache-Control: no-store');
       <details id="panel-crop" class="studio-section" open>
         <summary><span><span class="studio-section-symbol" aria-hidden="true">⊞</span> Crop &amp; rotate</span><span class="studio-section-summary">Composition</span></summary>
         <div class="studio-section-body studio-selects">
-          <label>Aspect ratio<select name="crop"><option value="original">Original proportions</option><option value="square">Square · 1:1</option><option value="4:3">Landscape · 4:3</option><option value="3:2">Classic · 3:2</option><option value="16:9">Widescreen · 16:9</option><option value="272:300">Blog thumbnail · 272:300</option></select></label>
+          <label>Aspect ratio<select name="crop"><option value="original">Original proportions</option><option value="free">Freeform</option><option value="square">Square · 1:1</option><option value="4:3">Landscape · 4:3</option><option value="3:2">Classic · 3:2</option><option value="16:9">Widescreen · 16:9</option><option value="272:300">Blog thumbnail · 272:300</option></select></label>
           <label>Rotate clockwise<select name="rotate"><option value="0">0° · Original</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label>
-          <p class="studio-section-note">Crop is centered in this release. Freehand crop is not yet available.</p>
+          <label class="editor-slider"><span class="studio-slider-heading"><span>Fine straighten</span><output id="editor-straighten-value" for="editor-straighten">0.0°</output></span>
+          <input id="editor-straighten" name="straighten" type="range" min="-150" max="150" step="1" value="0" aria-describedby="editor-straighten-help"></label>
+          <p class="studio-section-note" id="editor-straighten-help">Correct a tilted horizon in 0.1° steps (−15° to +15°). Positive turns clockwise.</p>
+          <div class="studio-crop-actions"><button type="button" id="editor-crop-toggle" class="studio-button studio-button-outline" aria-pressed="false">Edit crop on image</button><button type="button" id="editor-crop-reset" class="studio-button studio-button-muted">Reset crop</button></div>
+          <p class="studio-section-note" id="editor-crop-help">Drag a corner to resize, or drag the center to move the selection. Use arrow keys when a crop handle is focused; Shift + arrows for larger steps. Click Done cropping to preview the result.</p>
+          <input type="hidden" name="crop_manual" value="0"><input type="hidden" name="crop_x" value="0"><input type="hidden" name="crop_y" value="0"><input type="hidden" name="crop_w" value="1000"><input type="hidden" name="crop_h" value="1000">
         </div>
       </details>
       <details id="panel-detail" class="studio-section" open>
@@ -150,5 +162,5 @@ header('Cache-Control: no-store');
   </aside>
 </div>
 </div>
-<script src="assets/editor.js?v=web-0.8.0-phase1a" defer></script>
+<script src="assets/editor.js?v=web-0.8.1-phase1b" defer></script>
 </body></html>
