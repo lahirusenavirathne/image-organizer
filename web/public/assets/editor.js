@@ -7,6 +7,8 @@
   const message = document.getElementById('editor-status');
   const loading = document.getElementById('editor-loading');
   const before = document.getElementById('editor-before');
+  const saveState = document.getElementById('editor-save-state');
+  const previewHelp = document.getElementById('editor-preview-help');
   const photoId = Number(root.dataset.photoId);
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
   let revision = Number(root.dataset.revision);
@@ -18,6 +20,15 @@
   const inputs = [...form.querySelectorAll('[name]')];
   const field = name => form.elements.namedItem(name);
   const status = (text, error = false) => { message.textContent = text; message.classList.toggle('error', error); };
+  const savedState = (dirty, text = dirty ? 'Unsaved changes' : 'All changes saved') => {
+    if (saveState) { saveState.dataset.dirty = String(dirty); saveState.lastChild.textContent = ' ' + text; }
+  };
+  function paintRange(el) {
+    if(el.type !== 'range') return;
+    const min=Number(el.min),max=Number(el.max),value=Number(el.value);
+    const percent=max>min ? Math.max(0, Math.min(100, (value-min)*100/(max-min))) : 0;
+    el.style.setProperty('--slider-pct', percent+'%');
+  }
   function recipe() {
     const r = { ...baseline, rotate:Number(field('rotate').value), crop:field('crop').value };
     for (const key of ['exposure','contrast','highlights','shadows','saturation','warmth','sharpness'])
@@ -26,12 +37,16 @@
   }
   function updateLabels() {
     for (const key of ['exposure','contrast','highlights','shadows','saturation','warmth','sharpness'])
-      document.getElementById('edit-'+key+'-value').textContent=String(field(key).value);
+      {
+        const input=field(key);
+        document.getElementById('edit-'+key+'-value').textContent=String(input.value);
+        paintRange(input);
+      }
   }
   function loadForm(values) {
     const current={...baseline,...values};
     for(const key of Object.keys(baseline))field(key).value=String(current[key]);
-    updateLabels();queuePreview();
+    updateLabels();queuePreview();savedState(false);
   }
   async function send(action, params, abortSignal=null) {
     const data = new FormData();data.set('action', action);data.set('id', String(photoId));
@@ -59,6 +74,7 @@
       const next=URL.createObjectURL(blob),old=imageUrl;
       imageUrl=next;picture.onload=()=>{if(old)URL.revokeObjectURL(old);};
       picture.src=next;loading.hidden=true;
+      if(previewHelp)previewHelp.textContent=before.checked?'Showing the unedited original. Turn off Show original to compare your adjustments.':'Showing edited preview · Original file preserved';
     } catch(error) {
       if(error.name==='AbortError')return;
       loading.hidden=true;status('Preview error: '+error.message,true);
@@ -66,7 +82,7 @@
   }
   async function save(){
     try {const res=await send('save',recipe());const data=await res.json();
-      revision=data.version;root.dataset.revision=String(revision);status('Adjustments saved. Original photograph unchanged.');
+      revision=data.version;root.dataset.revision=String(revision);status('Adjustments saved. Original photograph unchanged.');savedState(false);
     } catch(error){status('Save failed: '+error.message,true);}
   }
   async function exportCopy() {
@@ -89,12 +105,28 @@
   }
   for(const el of inputs){
     if(!Object.prototype.hasOwnProperty.call(baseline,el.name))continue;
-    el.addEventListener(el.type==='range'?'input':'change',()=>{updateLabels();if(!before.checked)queuePreview();});
+    el.addEventListener(el.type==='range'?'input':'change',()=>{updateLabels();savedState(true);if(!before.checked)queuePreview();});
   }
   before.addEventListener('change',queuePreview);
   document.getElementById('editor-save').addEventListener('click',save);
   document.getElementById('editor-export').addEventListener('click',exportCopy);
-  document.getElementById('editor-reset').addEventListener('click',()=>{before.checked=false;loadForm(baseline);status('Sliders reset. Click Save adjustments to update the saved recipe.');});
+  document.getElementById('editor-reset').addEventListener('click',()=>{before.checked=false;loadForm(baseline);savedState(true);status('Sliders reset. Click Save adjustments to update the saved recipe.');});
+  const exportJump=document.getElementById('editor-top-export');
+  if(exportJump)exportJump.addEventListener('click',()=>{
+    document.getElementById('panel-export').scrollIntoView({behavior:'auto',block:'center'});
+    field('width').focus({preventScroll:true});
+  });
+  document.querySelectorAll('.studio-tool[data-jump]').forEach(button=>{
+    button.addEventListener('click',()=>{
+      const target=document.getElementById(button.dataset.jump);
+      if(!target)return;
+      if(target.tagName==='DETAILS')target.open=true;
+      document.querySelectorAll('.studio-tool').forEach(el=>{el.classList.toggle('active',el===button);el.setAttribute('aria-current',el===button?'true':'false');});
+      target.scrollIntoView({behavior:'auto',block:'nearest'});
+      if(target.tagName==='DETAILS')target.querySelector('summary')?.focus({preventScroll:true});
+      else target.querySelector('input,select')?.focus({preventScroll:true});
+    });
+  });
   window.addEventListener('pagehide',()=>{if(controller)controller.abort();if(imageUrl)URL.revokeObjectURL(imageUrl);});
   loadForm(saved);
 })();

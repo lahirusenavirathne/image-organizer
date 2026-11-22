@@ -1,8 +1,16 @@
+## web-0.7.2 — Photo Studio visual redesign
+
+- Replaces the minimal editor layout with a modern dark, image-first photo studio for desktop and mobile.
+- Adds a dedicated tool rail (Light, Color, Crop, Details, Export), grouped native adjustment panels, a large preview canvas, and a clear save/export action bar.
+- Improves slider state visibility and adds unsaved-change feedback, before/after toggle styling, and clearer preservation and shared-hosting limitations.
+- Keeps the existing server processing, recipes, original-image protection, Editor/Admin permissions, CSRF and export behavior intact. No new DB migration required.
+- Versioned editor CSS and JavaScript URLs prevent stale browser assets on DreamHost.
+
 ## web-0.7.1 — Edit photo navigation reliability
 
 - Use a real photo-specific editor link in the inspector rather than a `#` link whose click handler can be stale in browser cache.
 - Version the gallery and editor JavaScript asset URLs to bust old browser caches after upgrades.
-- Improve editor-page errors so missing database setup is distinguishable from photo not found; authentication remains enforced.
+- Improve editor-page errors so a missing database migration is distinguishable from a photo-not-found condition; authentication remains enforced.
 - No photo files, edit recipes, or production data are changed by this patch.
 
 ## web-0.7.0 — Non-destructive photo editor R1

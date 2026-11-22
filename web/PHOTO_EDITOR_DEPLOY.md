@@ -1,3 +1,7 @@
+## Web v0.7.2 — Photo Studio visual update
+
+No additional database migration is needed beyond the existing editor migration. After pulling the updated files, use `Ctrl+Shift+R` in the browser. The editor stylesheet and script are versioned as `web-0.7.2` to avoid stale browser caches. Native controls remain server-validated. The new layout adds grouped controls, the left tool rail, original comparison, save state, and responsive behavior; no new image-processing features are claimed. Test at desktop and mobile widths with real stored photos before promoting to production. Because this environment blocks real-browser rendering, the live visual appearance has not been independently confirmed here.
+
 # Guia Lanka Photo Manager — Photo editor R1 (STAGING)
 
 **Versions:** Windows **1.0.0-rc9**; DreamHost Web **v0.7.0**.

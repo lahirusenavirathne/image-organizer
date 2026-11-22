@@ -1,3 +1,7 @@
+## Web v0.7.2 — Photo Studio interface
+
+The web photo editor has an image-first, dark studio layout with a large preview canvas, tool rail, grouped Light/Color/Crop/Details controls, saved-change feedback, and a clear export panel. Editing functions and API behavior are unchanged from web v0.7.1. Select any photo and click **Edit photo**. Editor/Admin authentication is required. The workflow remains non-destructive; exports create new files. Update with `git pull` on the development branch, and hard refresh the browser. This is a staging release pending browser and DreamHost/GD verification.
+
 ## Photo editor R1 — Web v0.7.0 (staging)
 
 Authenticated Editors/Admins can open **Edit photo** from the inspector. Browser sliders request small PHP GD previews; edits are stored as versioned JSON recipes in MySQL, without touching private originals. Download WebP/JPEG/PNG edited copies at exact preset dimensions. Live output is capped to 2.5 MP for shared hosting. Use `bin/migrate_editor.php` (or first authenticated editor load) for the additive schema and consult `PHOTO_EDITOR_DEPLOY.md`. Existing web API v1 and photo uploads are unchanged; edit recipes are **not yet synced** between desktop and web.
