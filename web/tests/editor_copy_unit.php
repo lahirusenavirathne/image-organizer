@@ -28,7 +28,7 @@ assert_copy(str_contains($action,"'save_copy'") && str_contains($action,'editor_
 assert_copy(str_contains((string)file_get_contents($root.'/private/images.php'),'bool $includeStorageName=false'),'Normal uploads do not expose private stored filename');
 assert_copy(str_contains($action,"auth_require_user('editor')") && str_contains($action,'verify_csrf()'),'Editor permission and CSRF required');
 assert_copy(str_contains($helper,'ingest_image($temp,') && str_contains($helper,'$db->beginTransaction()') && str_contains($helper,'$db->rollBack()'),'Copy uses transactional photo catalog ingest');
-assert_copy(str_contains($helper,"'not analyzed'") && str_contains($helper,"$current['rights_status']"),'AI reset and rights kept');
+assert_copy(str_contains($helper,"'not analyzed'") && str_contains($helper,'$current[\'rights_status\']'),'AI reset and rights kept');
 assert_copy(str_contains($editor,'id="editor-save-copy"') && str_contains($editor,'name="copy_name"'),'Photo studio includes copy control and filename');
 assert_copy(str_contains($js,"send('save_copy',recipe())") && str_contains($js,"message.append(link)"),'Client offers link to saved copy');
 assert_copy(str_contains($js,'exportSettingsValid(true)'),'Copy validates its filename separately from download');
