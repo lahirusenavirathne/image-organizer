@@ -25,11 +25,11 @@ header('Cache-Control: no-store');
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#141b19">
+<meta name="theme-color" content="#16181c">
 <meta name="csrf-token" content="<?=h(csrf_token())?>">
 <title>Photo Studio · <?=h((string)$photo['original_name'])?> · Guia Lanka</title>
 <link rel="stylesheet" href="assets/style.css?v=web-0.7.2">
-<link rel="stylesheet" href="assets/editor.css?v=web-0.9.0-phase2a">
+<link rel="stylesheet" href="assets/editor.css?v=web-0.9.1-studio-ui">
 </head>
 <body class="editor-page">
 <div class="editor-shell" id="photo-editor" data-photo-id="<?=$id?>" data-revision="<?=h((string)$saved['version'])?>" data-recipe="<?=h(json_encode($saved['recipe'],JSON_INVALID_UTF8_SUBSTITUTE))?>">
@@ -57,7 +57,7 @@ header('Cache-Control: no-store');
     <button class="studio-tool" type="button" data-jump="panel-export" aria-label="Export settings"><span class="studio-tool-icon" aria-hidden="true">↧</span><span>Export</span></button>
   </nav>
   <main class="studio-canvas" aria-label="Photo editing workspace">
-    <div class="studio-canvas-head"><div><span class="studio-eyebrow">PREVIEW CANVAS</span><h1>Photo editor</h1></div><span class="studio-canvas-hint">Non-destructive editing <span aria-hidden="true">·</span> Original protected</span></div>
+    <div class="studio-canvas-head"><div class="studio-canvas-heading"><span class="studio-eyebrow">IMAGE WORKSPACE</span><h1>Photo editor</h1></div><span class="studio-canvas-hint"><span class="studio-safe-dot" aria-hidden="true"></span> Non-destructive · Original protected</span></div>
     <div class="editor-image-holder">
       <div class="studio-image-backdrop" aria-hidden="true"></div>
       <div class="editor-image-stage" id="editor-image-stage" aria-label="Photo preview. When zoomed, drag the image to pan.">
@@ -84,11 +84,19 @@ header('Cache-Control: no-store');
     <div class="studio-canvas-status" id="editor-preview-help">Adjust the controls to preview changes. Exporting always creates a new file.</div>
   </main>
   <aside class="studio-inspector" aria-label="Photo adjustments">
-    <div class="studio-panel-intro"><div><span class="studio-eyebrow">WORKSPACE</span><h2>Adjustments</h2></div><span class="studio-panel-version">STUDIO v0.9.0 · PHASE 2A</span></div>
+    <div class="studio-inspector-sticky">
+  <div class="studio-panel-intro"><div><span class="studio-eyebrow">PROFESSIONAL WORKSPACE</span><h2>Develop</h2></div><span class="studio-panel-version">STUDIO 0.9.1</span></div>
     <div class="studio-histogram" role="group" aria-labelledby="editor-histogram-title">
       <div class="studio-histogram-heading"><strong id="editor-histogram-title">RGB histogram</strong><output id="editor-clipping">Load a photo to view its tonal distribution</output></div>
       <canvas id="editor-histogram" width="300" height="98" role="img" aria-label="Red, green and blue channel histogram for the current edited preview"></canvas>
       <p class="studio-section-note">Live preview histogram · clipping readings are approximate.</p>
+    </div>
+    <nav class="studio-workspace-tabs" aria-label="Adjustment panels">
+      <button type="button" class="studio-workspace-tab active" data-jump="panel-light" aria-current="true">Light</button>
+      <button type="button" class="studio-workspace-tab" data-jump="panel-color">Color</button>
+      <button type="button" class="studio-workspace-tab" data-jump="panel-crop">Crop</button>
+      <button type="button" class="studio-workspace-tab" data-jump="panel-detail">Detail</button>
+    </nav>
     </div>
     <form id="editor-form" class="editor-controls">
       <details id="panel-light" class="studio-section" open>
@@ -105,7 +113,7 @@ header('Cache-Control: no-store');
             <?php endforeach; ?>
           </div>
           <div class="studio-advanced-group" id="editor-curve-controls">
-            <h3>Tone curve</h3>
+            <h3>Master tone curve <span class="studio-curve-label">LUMINANCE</span></h3>
             <svg id="editor-tone-curve" viewBox="0 0 256 256" role="img" aria-label="Tone curve from darkest tones to brightest" preserveAspectRatio="xMidYMid meet">
               <rect x="0" y="0" width="255" height="255" fill="#16251b" stroke="#667e69" stroke-width="1"/>
               <path d="M0 64 H255 M0 128 H255 M0 192 H255 M64 0 V255 M128 0 V255 M192 0 V255" stroke="#46654d" stroke-width=".65" fill="none"/>
@@ -115,11 +123,12 @@ header('Cache-Control: no-store');
               <label class="editor-slider"><span class="studio-slider-heading"><span><?=$label?></span><output id="edit-<?=$key?>-value">0</output></span>
                 <input id="edit-<?=$key?>" name="<?=$key?>" type="range" min="-50" max="50" value="0"></label>
             <?php endforeach; ?>
-            <p class="studio-section-note">Gentle, smooth curve controls. Neutral values keep your previous adjustments intact.</p>
+            <div class="studio-curve-axis"><span>Shadows</span><span>Input luminance → Highlights</span></div>
+            <p class="studio-section-note">Use the sliders below to shape shadows, midtones, and highlights. The curve is a live visual guide.</p>
           </div>
         </div>
       </details>
-      <details id="panel-color" class="studio-section" open>
+      <details id="panel-color" class="studio-section">
         <summary><span><span class="studio-section-symbol" aria-hidden="true">◒</span> Color</span><span class="studio-section-summary">Balance &amp; intensity</span></summary>
         <div class="studio-section-body">
         <?php foreach(['saturation'=>[-100,100],'warmth'=>[-100,100]] as $key=>$range): ?>
@@ -134,9 +143,17 @@ header('Cache-Control: no-store');
           </div>
           <div class="studio-advanced-group studio-hsl" id="editor-hsl-controls">
             <h3>HSL color mixer</h3>
-            <p class="studio-section-note">Adjust individual color families without shifting unrelated colors.</p>
+            <p class="studio-section-note">Select a color to change its Hue, Saturation and Luminance.</p>
+            <div class="studio-color-family-tabs" role="group" aria-label="HSL color family">
+              <?php foreach(EDITOR_HSL_COLORS as $color): ?>
+              <button type="button" class="studio-color-family-tab" data-hsl-select="<?=$color?>" aria-label="<?=$color?> color controls" aria-pressed="<?=$color==='red'?'true':'false'?>" title="<?=ucfirst($color)?>">
+                <span class="hsl-color-dot hsl-<?=$color?>" aria-hidden="true"></span>
+                <span><?=ucfirst($color)?></span>
+              </button>
+              <?php endforeach; ?>
+            </div>
             <?php foreach(EDITOR_HSL_COLORS as $color): ?>
-              <details class="hsl-color-group">
+              <details class="hsl-color-group" data-hsl-group="<?=$color?>" <?=$color==='red'?'open':'hidden'?>>
                 <summary><span class="hsl-color-dot hsl-<?=$color?>" aria-hidden="true"></span><?=ucfirst($color)?></summary>
                 <div class="hsl-sliders">
                   <?php foreach(['hue'=>['Hue',-30,30],'sat'=>['Saturation',-100,100],'lum'=>['Luminance',-70,70]] as $op=>$spec): $key='hsl_'.$color.'_'.$op; ?>
@@ -149,7 +166,7 @@ header('Cache-Control: no-store');
           </div>
         </div>
       </details>
-      <details id="panel-crop" class="studio-section" open>
+      <details id="panel-crop" class="studio-section">
         <summary><span><span class="studio-section-symbol" aria-hidden="true">⊞</span> Crop &amp; rotate</span><span class="studio-section-summary">Composition</span></summary>
         <div class="studio-section-body studio-selects">
           <label>Aspect ratio<select name="crop"><option value="original">Original proportions</option><option value="free">Freeform</option><option value="square">Square · 1:1</option><option value="4:3">Landscape · 4:3</option><option value="3:2">Classic · 3:2</option><option value="16:9">Widescreen · 16:9</option><option value="272:300">Blog thumbnail · 272:300</option></select></label>
@@ -162,7 +179,7 @@ header('Cache-Control: no-store');
           <input type="hidden" name="crop_manual" value="0"><input type="hidden" name="crop_x" value="0"><input type="hidden" name="crop_y" value="0"><input type="hidden" name="crop_w" value="1000"><input type="hidden" name="crop_h" value="1000">
         </div>
       </details>
-      <details id="panel-detail" class="studio-section" open>
+      <details id="panel-detail" class="studio-section">
         <summary><span><span class="studio-section-symbol" aria-hidden="true">✧</span> Details</span><span class="studio-section-summary">Finishing</span></summary>
         <div class="studio-section-body">
           <label class="editor-slider"><span class="studio-slider-heading"><span>Sharpness</span><output for="edit-sharpness" id="edit-sharpness-value">0</output></span><input id="edit-sharpness" name="sharpness" type="range" min="0" max="100" step="1" value="0"></label>
@@ -209,5 +226,5 @@ header('Cache-Control: no-store');
   </aside>
 </div>
 </div>
-<script src="assets/editor.js?v=web-0.9.0-phase2a" defer></script>
+<script src="assets/editor.js?v=web-0.9.1-studio-ui" defer></script>
 </body></html>

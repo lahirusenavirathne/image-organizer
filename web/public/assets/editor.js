@@ -454,16 +454,60 @@
     $('panel-export').scrollIntoView({behavior:'auto',block:'center'});
     field('width').focus({preventScroll:true});
   });
-  document.querySelectorAll('.studio-tool[data-jump]').forEach(button=>{
+  // Use the same logical panel selection in the rail and the inspector tabs.
+  const panelNavigation=document.querySelectorAll('.studio-tool[data-jump],.studio-workspace-tab[data-jump]');
+  function markActivePanel(panelId){
+    panelNavigation.forEach(el=>{
+      const active=el.dataset.jump===panelId;
+      el.classList.toggle('active',active);
+      if(active)el.setAttribute('aria-current','true');
+      else el.removeAttribute('aria-current');
+    });
+  }
+  document.querySelectorAll('.studio-section').forEach(section=>{
+    section.addEventListener('toggle',()=>{
+      if(!section.open)return;
+      document.querySelectorAll('.studio-section').forEach(other=>{
+        if(other!==section)other.open=false;
+      });
+      markActivePanel(section.id);
+    });
+  });
+  panelNavigation.forEach(button=>{
     button.addEventListener('click',()=>{
       const target=$(button.dataset.jump);if(!target)return;
-      if(target.tagName==='DETAILS')target.open=true;
-      document.querySelectorAll('.studio-tool').forEach(el=>{el.classList.toggle('active',el===button);el.setAttribute('aria-current',el===button?'true':'false');});
-      target.scrollIntoView({behavior:'auto',block:'nearest'});
+      if(target.tagName==='DETAILS'){
+        document.querySelectorAll('.studio-section').forEach(panel=>{panel.open=panel===target;});
+      }
+      markActivePanel(target.id);
+      // Scroll just the inspector on desktop; scrollIntoView would also move the
+      // outer document and hide the fixed editing header behind the browser bar.
+      const inspector=target.closest('.studio-inspector');
+      if(inspector && window.matchMedia('(min-width:1001px)').matches){
+        const pinned=inspector.querySelector('.studio-inspector-sticky')?.getBoundingClientRect().height||0;
+        inspector.scrollTop+=target.getBoundingClientRect().top-inspector.getBoundingClientRect().top-pinned;
+      }else target.scrollIntoView({behavior:'auto',block:'nearest'});
       if(target.tagName==='DETAILS')target.querySelector('summary')?.focus({preventScroll:true});
       else target.querySelector('input,select')?.focus({preventScroll:true});
     });
   });
+  // One HSL family at a time keeps the color mixer compact and visually scannable.
+  const colorButtons=[...document.querySelectorAll('.studio-color-family-tab')];
+  const colorGroups=[...document.querySelectorAll('.hsl-color-group[data-hsl-group]')];
+  function showColorFamily(color){
+    for(const group of colorGroups){
+      const selected=group.dataset.hslGroup===color;
+      group.hidden=!selected;
+      group.open=selected;
+    }
+    for(const button of colorButtons){
+      button.setAttribute('aria-pressed',String(button.dataset.hslSelect===color));
+    }
+  }
+  for(const button of colorButtons){
+    button.addEventListener('click',()=>showColorFamily(button.dataset.hslSelect));
+  }
+  if(colorButtons.length)showColorFamily('red');
   window.addEventListener('pagehide',()=>{
     if(controller)controller.abort();if(imageUrl)URL.revokeObjectURL(imageUrl);if(beforeUrl)URL.revokeObjectURL(beforeUrl);
   });

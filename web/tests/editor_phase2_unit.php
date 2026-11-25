@@ -36,7 +36,7 @@ phase2_check(str_contains($html,'id="editor-histogram"')&&str_contains($js,'refr
 phase2_check(str_contains($html,'id="editor-tone-curve"')&&str_contains($js,'updateToneCurve()'),'Tone curve interface updates');
 phase2_check(str_contains($html,'name="<?=$key?>"')&&str_contains($html,'EDITOR_HSL_COLORS'),'HSL channel PHP controls present');
 phase2_check(str_contains($js,'...advancedFields')&&str_contains($js,'for (const key of toneFields)'),'HSL edits tracked by undo/presets');
-phase2_check(str_contains($html,'assets/editor.js?v=web-0.9.0-phase2a')&&str_contains($html,'assets/editor.css?v=web-0.9.0-phase2a'),'New files are cache-busted');
+phase2_check(str_contains($html,'assets/editor.js?v=web-0.9.1-studio-ui')&&str_contains($html,'assets/editor.css?v=web-0.9.1-studio-ui'),'New files are cache-busted');
 phase2_check(str_contains($css,'.studio-histogram')&&str_contains($css,'.hsl-color-group'),'Mobile-capable editor styles present');
 phase2_check(str_contains($css,'flex:0 0 13px'),'HSL swatches stay circular');
 if(extension_loaded('gd')){

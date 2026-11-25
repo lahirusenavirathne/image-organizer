@@ -1,3 +1,12 @@
+## web-0.9.1-studio-ui — Professional dark photo editing workspace
+
+- Replace the bright green photo editor style with a neutral charcoal studio workspace, compact typography, photographic black canvas and cool neutral accents.
+- Make the RGB histogram visible at the top of the inspector while desktop adjustment panels scroll.
+- Add compact inspector tabs synchronized with the left tool rail. Only the selected adjustment category is expanded to avoid endless panels.
+- Replace the eight stacked HSL accordion choices with an interactive eight-color family picker, showing a single detailed mixer at a time.
+- Retain real preview histogram, tone curve, crop, straighten, undo/redo, presets, Save as copy and downloads; no change to photo data or database schema.
+- Browser-tested desktop, tablet and mobile layouts.
+
 ## web-0.9.0-phase2a — Professional tone and color adjustments
 
 - Live RGB histogram with approximate highlight/shadow clipping readings from the edited preview.

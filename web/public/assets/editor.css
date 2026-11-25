@@ -274,3 +274,181 @@
 .editor-page .studio-section .hsl-color-group summary > .hsl-color-dot {
   flex:0 0 13px;display:inline-block;inline-size:13px;block-size:13px;min-inline-size:13px;
 }
+
+
+/* v0.9.1 Studio Pro UI: neutral charcoal workspace modeled on established
+   professional photo editors. All controls retain their existing IDs/actions. */
+.editor-page{
+  --studio-bg:#111216;--studio-panel:#202226;--studio-panel2:#292c31;
+  --studio-line:#363940;--studio-text:#ecedf0;--studio-muted:#969aa4;
+  --studio-bright:#b8d4ff;--studio-accent:#a6bce2;
+  background:var(--studio-bg);color:var(--studio-text);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+}
+.editor-page .editor-shell{background:#131416}
+.editor-page .studio-header{height:64px;min-height:64px;background:#1c1e22;border-bottom:1px solid #383b42;gap:16px;padding:9px 20px}
+.editor-page .studio-brand{min-width:158px;gap:10px}
+.editor-page .studio-mark{width:35px;height:35px;border-radius:9px;background:#8bb49a;color:#17231a;font-family:Georgia,serif;font-size:13px}
+.editor-page .studio-brand-copy small{color:#90949d;letter-spacing:.13em}
+.editor-page .studio-header-divider{background:#41434a}
+.editor-page .studio-back{color:#aab0bc}
+.editor-page .studio-document-label{color:#8d9cb4;font-size:9px;letter-spacing:.14em}
+.editor-page .studio-document-name{color:#f3f4f7;font-size:13px}
+.editor-page .studio-save-state{font-size:11px;color:#a8adb5;margin-inline-end:3px}
+.editor-page .studio-button{border-radius:7px;font-size:12px;min-height:34px;padding:8px 12px;transition:background-color .13s,border-color .13s}
+.editor-page .studio-button-primary{background:#a8c5f7;color:#152134;border-color:#c1d8ff}
+.editor-page .studio-button-primary:hover{background:#c6dbff}
+.editor-page .studio-button-outline{border-color:#505764;background:#31353c;color:#eef0f5}
+.editor-page .studio-button-outline:hover{background:#424752}
+.editor-page .studio-button-muted{width:auto;background:#2b2e34;border-color:#444852;color:#b8bec8}
+.editor-page .studio-button-muted:hover{background:#3a3e46}
+.editor-page .studio-button:disabled{opacity:.38}
+.editor-page .studio-header-actions{flex-wrap:nowrap;gap:7px}
+.editor-page .studio-header-actions #editor-undo,
+.editor-page .studio-header-actions #editor-redo{min-width:70px;padding-inline:8px}
+.editor-page .studio-workspace{grid-template-columns:64px minmax(0,1fr) 388px}
+.editor-page .studio-tools{background:#1e2024;border-right:1px solid #373a41;padding:19px 5px 13px;gap:8px}
+.editor-page .studio-tools-heading{font-size:9px;color:#81858e;letter-spacing:.12em}
+.editor-page .studio-tool{width:52px;height:57px;color:#a0a5af;font-size:10px;border-radius:8px}
+.editor-page .studio-tool:hover,.editor-page .studio-tool.active{background:#343943;border:1px solid #536077;color:#d4e2ff}
+.editor-page .studio-tool-icon{font-size:20px}
+.editor-page .studio-canvas{
+  background:#141518;min-height:0;
+  padding:19px clamp(14px,2.1vw,35px) 10px;
+}
+.editor-page .studio-canvas-head{margin-bottom:14px;align-items:center}
+.editor-page .studio-eyebrow{color:#99a5b9;letter-spacing:.12em;font-size:9px}
+.editor-page .studio-canvas-head h1{font-size:16px;font-weight:700;letter-spacing:-.02em;margin:1px 0}
+.editor-page .studio-canvas-hint{display:flex;align-items:center;gap:8px;color:#8c929d;font-size:11px}
+.editor-page .studio-safe-dot{width:6px;height:6px;border-radius:50%;background:#89c89c}
+.editor-page .editor-image-holder{
+  background:#0b0c0e;border:1px solid #2b2e34;border-radius:7px;
+  padding:20px;height:calc(100dvh - 206px);min-height:310px;
+  box-shadow:0 12px 55px #0003;
+}
+.editor-page .studio-image-backdrop{opacity:.018}
+.editor-page .editor-image-holder .editor-image-stage img{filter:none}
+.editor-page #editor-loading{background:#252832ed;border:1px solid #545c70;color:#eef1fb}
+.editor-page .studio-canvas-foot{border-bottom:1px solid #30323a;gap:15px;padding:12px 0 11px;color:#b0b5bf}
+.editor-page .studio-foot-info{color:#7e8590;font-size:10px}
+.editor-page .studio-foot-format{color:#9da4af;font-size:11px}
+.editor-page .studio-toggle-track{background:#383c44;border-color:#5b616b}
+.editor-page .studio-before-toggle input:checked + .studio-toggle-track{background:#6884b3}
+.editor-page .studio-zoom-controls button{background:#282b31;border-color:#424650;color:#e6e7eb}
+.editor-page .studio-zoom-controls output{color:#d3d7df}
+.editor-page .studio-inspector{
+  background:#212328;border-left:1px solid #34373d;
+  max-height:calc(100dvh - 64px);overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-color:#555b64 #25272b;scrollbar-width:thin;
+}
+.editor-page .studio-panel-intro{padding:14px 18px 10px;background:#24262b}
+.editor-page .studio-panel-intro h2{font-size:17px;margin-top:0;letter-spacing:-.02em}
+.editor-page .studio-panel-version{color:#8e97a8;border-color:#424852;font-size:9px}
+.editor-page .studio-histogram{
+  position:sticky;top:0;z-index:5;background:#24262b;
+  border-bottom:1px solid #44464e;padding:8px 18px 11px;
+  box-shadow:0 9px 18px #15161a66;
+}
+.editor-page .studio-histogram-heading{margin-bottom:6px;gap:7px}
+.editor-page .studio-histogram-heading strong{color:#e4e6ee;font-size:11px;letter-spacing:.015em}
+.editor-page .studio-histogram-heading output{color:#a6acb6;font-size:9px}
+.editor-page #editor-histogram{height:105px;max-height:none;object-fit:fill;background:#17191e;border:1px solid #3f434c;border-radius:4px}
+.editor-page .studio-histogram .studio-section-note{font-size:10px;color:#8b929d;margin-top:6px}
+.editor-page .studio-workspace-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid #3b3d45;background:#25272c;position:relative}
+.editor-page .studio-workspace-tab{
+  border:0;border-bottom:2px solid transparent;background:transparent;color:#9da4ae;
+  padding:11px 2px 10px;font-size:11px;font-weight:650;cursor:pointer;
+}
+.editor-page .studio-workspace-tab.active{color:#e4eaff;border-bottom-color:#a9c7f6;background:#303540}
+.editor-page .studio-workspace-tab:hover{color:#f4f6fc;background:#343843}
+.editor-page .studio-section{border-bottom:1px solid #3d3f47;background:#212328}
+.editor-page .studio-section summary{padding:14px 18px;font-size:12px;gap:8px;color:#e5e7ee}
+.editor-page .studio-section-symbol{background:#303943;color:#b4c9ee;width:23px;height:23px;font-size:15px;border-radius:5px}
+.editor-page .studio-section summary::after{color:#9ca4b2}
+.editor-page .studio-section-body{padding:3px 18px 20px;gap:14px}
+.editor-page .studio-slider-heading{color:#c7ccd5;font-size:11px;font-weight:550}
+.editor-page .editor-slider output{background:#333843;color:#dfe9fa;min-width:32px;font-size:11px}
+.editor-page .editor-slider input[type=range]{accent-color:#b4cff7}
+.editor-page .editor-slider input[type=range]::-webkit-slider-runnable-track{
+  background:linear-gradient(to right,#afc9ef 0,#afc9ef var(--slider-pct,50%),#4c535f var(--slider-pct,50%),#4c535f 100%);
+  height:3px;
+}
+.editor-page .editor-slider input[type=range]::-webkit-slider-thumb{background:#f4f6fb;border-color:#617ea7}
+.editor-page .studio-advanced-group{border-top:1px solid #3b4049;padding-top:14px;gap:13px}
+.editor-page .studio-advanced-group h3{color:#dce1e9;font-size:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.editor-page .studio-curve-label{font-size:9px;letter-spacing:.1em;font-weight:600;color:#8c9db6}
+.editor-page #editor-tone-curve{display:block;width:100%;max-width:280px;margin:auto;aspect-ratio:1/1;border:1px solid #424751;border-radius:4px;background:#14171c}
+.editor-page #editor-tone-curve rect{fill:#171b20}
+.editor-page #editor-tone-curve path:not(#editor-tone-curve-path){stroke:#444c57}
+.editor-page #editor-tone-curve-path{stroke:#e0e5f0}
+.editor-page .studio-curve-axis{display:flex;justify-content:space-between;color:#8b929e;font-size:9px;margin-top:-8px;gap:8px}
+.editor-page .studio-section-note{color:#9ba2ab;font-size:10.5px}
+.editor-page .studio-advanced-group.studio-hsl{border-top:1px solid #444750;gap:10px}
+.editor-page .studio-color-family-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.editor-page .studio-color-family-tab{display:flex;align-items:center;gap:6px;justify-content:flex-start;
+  padding:8px 6px;min-width:0;border:1px solid #414751;border-radius:6px;background:#2a2e34;color:#c3c8d0;
+  font-size:10px;cursor:pointer;}
+.editor-page .studio-color-family-tab:hover{border-color:#78859b}
+.editor-page .studio-color-family-tab[aria-pressed=true]{border-color:#9cb4db;background:#363f4f;color:#f4f8ff}
+.editor-page .studio-color-family-tab .hsl-color-dot{width:11px;height:11px;min-width:11px;flex:0 0 11px}
+.editor-page .hsl-color-group{border:1px solid #464b55;background:#292c32;border-radius:5px}
+.editor-page .hsl-color-group[hidden]{display:none}
+.editor-page .hsl-color-group summary{padding:9px 12px;color:#dde2ea;font-size:11px}
+.editor-page .hsl-color-group summary::after{color:#a2acb9}
+.editor-page .hsl-sliders{border-top:1px solid #3d434d;padding:12px 14px 16px;gap:13px}
+.editor-page .hsl-color-group .studio-slider-heading{color:#cfd3df}
+.editor-page .studio-export{background:#292c31;border-top:1px solid #454a53}
+.editor-page .studio-export h2{color:#eef0f6}
+.editor-page .studio-selects select,.editor-page .studio-export select,.editor-page .studio-export input,
+.editor-page .studio-copy-name input,.editor-page .studio-preset-panel input,.editor-page .studio-preset-panel select{
+  color:#e8edf5;background:#30343b;border:1px solid #505762;border-radius:6px;
+}
+.editor-page .studio-crop-actions #editor-crop-toggle[aria-pressed=true]{background:#36465b;color:#cbe0ff;border-color:#8aa8d2}
+.editor-page .editor-crop-box .crop-handle{background:#647caa}
+.editor-page .studio-preset-panel h3{color:#e3e6ed}
+.editor-page .studio-preset-panel{gap:9px}
+.editor-page .studio-copy-success{color:#c3d9ff}
+.editor-page #editor-tone-curve:focus-visible,.editor-page .studio-workspace-tab:focus-visible{
+  outline:2px solid #a9c9f5;outline-offset:2px
+}
+@media(max-width:1280px){
+  .editor-page .studio-workspace{grid-template-columns:58px minmax(0,1fr) 350px}
+  .editor-page .studio-header{gap:11px}
+  .editor-page .studio-brand{min-width:132px}
+}
+@media(max-width:1000px){
+  .editor-page .studio-header{height:auto;min-height:64px;padding:9px 13px;flex-wrap:wrap}
+  .editor-page .studio-header-actions{flex:1 1 100%;order:4;justify-content:flex-start;flex-wrap:wrap;margin:2px 0 0}
+  .editor-page .studio-workspace{grid-template-columns:58px minmax(0,1fr)}
+  .editor-page .studio-inspector{max-height:none;overflow:visible;grid-column:2}
+  .editor-page .studio-histogram{position:static;box-shadow:none}
+  .editor-page .editor-controls{display:block}
+  .editor-page .studio-section{border-right:0}
+  .editor-page .studio-canvas{padding:16px}
+  .editor-page .editor-image-holder{height:55vh;min-height:290px}
+}
+@media(max-width:630px){
+  .editor-page .studio-header{gap:8px}
+  .editor-page .studio-header-actions{width:100%;gap:6px}
+  .editor-page .studio-workspace{display:flex;flex-direction:column}
+  .editor-page .studio-tools{order:0;position:sticky;top:0;z-index:8;flex-direction:row;justify-content:space-around;padding:5px 6px}
+  .editor-page .studio-tool{width:19%;height:46px}
+  .editor-page .studio-canvas{order:1;padding:14px 10px}
+  .editor-page .editor-image-holder{height:52vh;min-height:260px;padding:9px}
+  .editor-page .studio-canvas-head h1{font-size:16px}
+  .editor-page .studio-inspector{order:2;width:100%;max-height:none;overflow:visible}
+  .editor-page .studio-panel-intro{padding:13px 15px}
+  .editor-page .studio-histogram{padding:10px 15px}
+  .editor-page .studio-section-body{padding-inline:16px}
+  .editor-page .studio-color-family-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .editor-page .studio-color-family-tab{font-size:9px;gap:5px}
+}
+
+/* Keep all navigation available while working down a long curve or mixer. */
+.editor-page .studio-inspector-sticky{position:sticky;top:0;z-index:6;background:#24262b;border-bottom:1px solid #454953}
+.editor-page .studio-inspector-sticky .studio-histogram{position:static;box-shadow:none}
+@media(max-width:1000px){.editor-page .studio-inspector-sticky{position:static}}
+
+/* Reveal the panel title and first controls below the sticky inspector header. */
+.editor-page .studio-section{scroll-margin-top:270px}
+@media(max-width:1000px){.editor-page .studio-section{scroll-margin-top:64px}}
